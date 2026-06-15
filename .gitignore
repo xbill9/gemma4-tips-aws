@@ -1,3 +1,5 @@
+.aws_creds
+
 # Models and large files
 gemma-4-*/
 gemma-*/

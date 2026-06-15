@@ -1,67 +1,93 @@
-# Deployment Guide: Self-Hosted vLLM on Cloud Run (Gemma 4 12B-it)
+# Deployment Guide: Self-Hosted vLLM on AWS EC2 (Gemma 4 12B-it QAT)
 
-This document summarizes the deployment state and configuration for the vLLM inference server used by the DevOps Agent.
+This document summarizes the deployment state, configuration, and architecture for the self-hosted vLLM inference server running on AWS EC2.
+
+---
 
 ## 📦 Model Artifacts
-The model was extracted from `gemma-4-12B-it-qat-w4a16-ct.tar.gz` and uploaded to Google Cloud Storage.
+The model is served using the official quantized w4a16 compressed-tensors (QAT) checkpoint:
+*   **Source:** Hugging Face (`google/gemma-4-12B-it-qat-w4a16-ct`)
+*   **Alternative Storage:** AWS S3 (`s3://vllm-models-bucket/gemma-4-12B-it-qat-w4a16-ct/`)
+*   **Format:** Hugging Face Transformers (Safetensors with compressed-tensors)
 
+---
 
-*   **Bucket:** `gs://aisprint-491218-bucket/`
-*   **Path:** `gemma-4-12B-it-qat-w4a16-ct/`
-*   **Format:** Hugging Face Transformers (Safetensors)
+## 🚀 AWS Inference Stack (EC2 g6.2xlarge Spot Instance)
+The inference server is hosted on an AWS Spot EC2 instance for cost-effective machine learning workloads.
 
-## 🚀 Inference Stack (vLLM)
-The inference server is deployed on Cloud Run with GPU acceleration and GCS FUSE.
+*   **Instance Type:** `g6.2xlarge`
+*   **Market Type:** Spot (One-time request)
+*   **GPU Accelerator:** 1x NVIDIA L4 (24 GiB VRAM)
+*   **vCPUs / RAM:** 8 vCPUs / 32 GiB RAM
+*   **Operating System / AMI:** Ubuntu 22.04 Deep Learning AMI (DLAMI)
+*   **Container Port:** `8080` (mapped to Host Port `8080`)
+*   **Security Group:** `vllm-devops-sg` (allows inbound TCP on `8080` and `22`)
 
-*   **Service Name:** `gpu-12b-qat-l4-devops-agent`
-*   **Service URL:** `https://gpu-12b-qat-l4-devops-agent-289270257791.us-east4.run.app`
-*   **Region:** `us-east4`
-*   **Hardware:** 
-    *   **GPU:** 1x NVIDIA L4
-    *   **vCPU:** 4
-    *   **Memory:** 16GiB
-*   **Configuration:**
-    *   **Container Port:** `8080`
-    *   **Max Model Length:** `32768`
-    *   **Storage:** GCS FUSE mounted at `/mnt/models`
-    *   **Zonal Redundancy:** Disabled (`--no-gpu-zonal-redundancy`)
-
-## 🛠 Usage
-To connect the MCP Agent to this service, export the following environment variables:
-
+### AWS CLI Launch Command (Spot)
 ```bash
-export VLLM_BASE_URL="https://gpu-12b-qat-l4-devops-agent-289270257791.us-east4.run.app"
-export MODEL_NAME="/mnt/models/gemma-4-12B-it-qat-w4a16-ct"
-export GOOGLE_CLOUD_PROJECT="aisprint-491218"
+aws ec2 run-instances \
+  --image-id ami-012ba162b9cd2729c \
+  --instance-type g6.2xlarge \
+  --key-name alinux \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gpu-12b-qat-l4-devops-agent}]' \
+  --instance-market-options '{"MarketType":"spot","SpotOptions":{"SpotInstanceType":"one-time"}}' \
+  --user-data file://user_data.sh
 ```
 
-Then run the agent:
+---
+
+## 🛠 Deployment & Startup Script
+
+The instance is deployed with a `UserData` script that automatically provisions Docker and launches the vLLM engine inside a container with optimized parameters.
+
+### vLLM Run Arguments
 ```bash
-make run
+docker run -d --name vllm-server \
+  --gpus all \
+  --ipc=host \
+  --restart always \
+  -p 8080:8080 \
+  -e HF_TOKEN="<your-hf-token>" \
+  vllm/vllm-openai:nightly \
+  --model google/gemma-4-12B-it-qat-w4a16-ct \
+  --quantization compressed-tensors \
+  --dtype bfloat16 \
+  --max-model-len 32768 \
+  --disable-chunked-mm-input \
+  --gpu-memory-utilization 0.95 \
+  --kv-cache-dtype fp8 \
+  --tensor-parallel-size 1 \
+  --max-num-seqs 8 \
+  --enable-chunked-prefill \
+  --max-num-batched-tokens 4096 \
+  --enable-auto-tool-choice \
+  --tool-call-parser gemma4 \
+  --reasoning-parser gemma4 \
+  --async-scheduling \
+  --limit-mm-per-prompt '{}' \
+  --host 0.0.0.0 \
+  --port 8080
 ```
 
-## 📜 Deployment Command (Reference)
-```bash
-gcloud beta run deploy gpu-12b-qat-l4-devops-agent \
-  --image=vllm/vllm-openai:nightly \
-  --command=python3,-m,vllm.entrypoints.openai.api_server \
-  --gpu=1 \
-  --gpu-type=nvidia-l4 \
-  --no-gpu-zonal-redundancy \
-  --no-cpu-throttling \
-  --concurrency=4 \
-  --timeout=3600 \
-  --startup-probe=timeoutSeconds=60,periodSeconds=60,failureThreshold=10,initialDelaySeconds=180,httpGet.port=8080,httpGet.path=/health \
-  --max-instances=1 \
-  --min-instances=0 \
-  --port=8080 \
-  --memory=16Gi \
-  --cpu=4 \
-  --execution-environment=gen2 \
-  --add-volume=name=model-volume,type=cloud-storage,bucket=aisprint-491218-bucket,readonly=true,mount-options=uid=1001;gid=1001 \
-  --add-volume-mount=volume=model-volume,mount-path=/mnt/models \
-  --args=--model=/mnt/models/gemma-4-12B-it-qat-w4a16-ct,--quantization=compressed-tensors,--dtype=bfloat16,--max-model-len=32768,--disable-chunked-mm-input,--gpu-memory-utilization=0.95,--kv-cache-dtype=fp8,--tensor-parallel-size=1,--max-num-seqs=8,--enable-chunked-prefill,--max-num-batched-tokens=4096,--enable-auto-tool-choice,--tool-call-parser=gemma4,--reasoning-parser=gemma4,--async-scheduling,--limit-mm-per-prompt={},--host=0.0.0.0,--port=8080 \
-  --no-allow-unauthenticated \
-  --region=us-east4 \
-  --set-env-vars=VLLM_ENABLE_CUDA_COMPATIBILITY=1,VLLM_USE_V1=0,HF_HUB_OFFLINE=1,TRANSFORMERS_OFFLINE=1,VLLM_DISABLE_FLASHINFER=1,VLLM_USE_FLASHINFER_SAMPLER=0,PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,MKL_NUM_THREADS=1,OMP_NUM_THREADS=1,MALLOC_TRIM_THRESHOLD_=65536
-```
+### Key Parameters Explained
+*   `--dtype bfloat16`: Prevents numerical overflow/underflow and matches Gemma 4's native precision.
+*   `--quantization compressed-tensors`: Required to deserialize the QAT INT4 model weights.
+*   `--gpu-memory-utilization 0.95`: Allocates 95% of GPU memory to vLLM's cache.
+*   `--kv-cache-dtype fp8`: Cuts KV cache footprint in half, drastically improving concurrency.
+*   `--tool-call-parser gemma4` & `--reasoning-parser gemma4`: Critical for correct parsing of tool calls.
+
+---
+
+## 🔗 Integration with SRE Agent
+To connect the MCP SRE Agent to the newly deployed AWS endpoint:
+
+1. Discover the public IP of your EC2 instance (e.g. `54.1.2.3`).
+2. Export the endpoint URL in your terminal environment:
+   ```bash
+   export VLLM_BASE_URL="http://54.1.2.3:8080"
+   export MODEL_NAME="google/gemma-4-12B-it-qat-w4a16-ct"
+   ```
+3. Start the agent:
+   ```bash
+   make run
+   ```

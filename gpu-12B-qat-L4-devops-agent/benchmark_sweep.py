@@ -221,8 +221,8 @@ async def run_sweep():
     print(f"\nCSV results saved to {csv_file}")
 
     # Generate Matrices for Markdown Report
-    latency_matrix = {size: {} for size in context_sizes}
-    throughput_matrix = {size: {} for size in context_sizes}
+    latency_matrix: dict[int, dict[int, str]] = {size: {} for size in context_sizes}
+    throughput_matrix: dict[int, dict[int, str]] = {size: {} for size in context_sizes}
     for r in all_results:
         latency_matrix[r["context_size"]][r["concurrency"]] = f"{r['avg_latency']:.2f}s"
         throughput_matrix[r["context_size"]][r["concurrency"]] = f"{r['req_per_sec']:.1f}"
