@@ -1,8 +1,8 @@
-# 📊 Gemma 4 QAT vLLM GPU 2D Grid Concurrency Benchmark Report
+# 📊 Gemma 4 QAT vLLM AWS EC2 Concurrency Benchmark Report
 
-This report presents performance benchmark results for the self-hosted **Gemma 4 12B QAT (Quantization-Aware Training)** model (`google/gemma-4-12B-it-qat-w4a16-ct`) deployed on a single **NVIDIA L4 GPU** (Cloud Run Gen2) in the `us-east4` region.
+This report presents performance benchmark results for the self-hosted **Gemma 4 12B QAT (Quantization-Aware Training)** model (`google/gemma-4-12B-it-qat-w4a16-ct`) deployed on an **AWS EC2 `g6.2xlarge`** instance (1 x NVIDIA L4 GPU, 24GB VRAM) in the `us-east-1` region.
 
-The benchmark sweeps across a 2D grid of **concurrency levels** (1 to 2048 concurrent users) and **context window sizes** (8 to 16,384 tokens).
+The benchmark sweeps across a 2D grid of **concurrency levels** (1 to 2048 concurrent users) and **context window sizes** (4 to 16,384 tokens).
 
 ---
 
@@ -11,33 +11,34 @@ The benchmark sweeps across a 2D grid of **concurrency levels** (1 to 2048 concu
 ### 1. Concurrency Sweep: Latency & Throughput vs. Concurrent Users
 This chart shows the latency scaling and request throughput under concurrent load for different context window sizes.
 
-![Concurrency Sweep Chart](/home/xbill/.gemini/antigravity-cli/brain/c3340302-6f52-4515-bdd0-70c6cf92ec75/benchmark_chart.png)
+![Concurrency Sweep Chart](./benchmark_chart.png)
 
-### 2. Model Comparison: Standard FP8 vs. QAT INT4
+### 2. Model Comparison: Standard vs. QAT
 This chart compares the serving characteristics of the Standard 12B model (using FP8 quantization) and the QAT 12B model (INT4 quantization).
 
-![Model Comparison Chart](/home/xbill/.gemini/antigravity-cli/brain/c3340302-6f52-4515-bdd0-70c6cf92ec75/comparison_chart.png)
+![Model Comparison Chart](./comparison_chart.png)
 
 ---
 
 ## 🕒 Average Latency Matrix (seconds)
 
-Below is the average latency (in seconds) for each context size and concurrency level:
+Below is the average latency (in seconds) for each context size and concurrency level on AWS EC2:
 
 | Context \ Users | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **8** | 0.14s | 0.19s | 2.02s | 0.26s | 0.34s | 0.54s | 0.92s | 1.71s | 3.30s | 7.61s | 13.05s | 27.13s |
-| **16** | 0.16s | 0.19s | 0.20s | 0.26s | 0.46s | 0.55s | 0.92s | 1.70s | 3.31s | 6.60s | 13.81s | 33.10s |
-| **32** | 0.18s | 0.21s | 0.23s | 0.29s | 0.53s | 0.65s | 1.16s | 2.17s | 4.19s | 8.42s | 16.81s | 31.98s |
-| **64** | 2.91s | 0.21s | 0.24s | 0.33s | 0.51s | 0.82s | 1.44s | 2.75s | 5.35s | 10.85s | 22.02s | 33.05s |
-| **128** | 22.70s | 0.18s | 0.27s | 0.33s | 0.51s | 0.83s | 1.46s | 2.73s | 5.38s | 10.79s | 21.07s | 32.56s |
-| **256** | 22.62s | 0.22s | 0.27s | 0.35s | 0.52s | 0.85s | 1.50s | 2.78s | 5.43s | 10.74s | 22.54s | 32.42s |
-| **512** | 19.96s | 0.19s | 0.28s | 0.36s | 0.52s | 0.85s | 1.53s | 2.89s | 5.62s | 11.26s | 23.03s | 32.42s |
-| **1024** | 24.05s | 0.23s | 0.29s | 0.36s | 0.57s | 0.91s | 1.61s | 3.06s | 5.89s | 11.95s | 23.22s | 32.22s |
-| **2048** | 29.01s | 0.25s | 0.31s | 0.41s | 0.60s | 1.02s | 1.77s | 3.47s | 6.80s | 13.47s | 26.22s | 31.73s |
-| **4096** | 40.21s | 0.29s | 0.36s | 0.47s | 0.71s | 1.39s | 2.33s | 4.17s | 8.06s | 16.12s | 31.17s | 32.84s |
-| **8192** | 0.00s | 1.56s | 0.50s | 0.64s | 1.25s | 1.72s | 2.91s | 5.55s | 11.13s | 22.19s | 31.00s | 45.47s |
-| **16384** | 33.59s | 0.34s | 0.50s | 0.50s | 1.19s | 2.04s | 3.39s | 7.04s | 16.80s | 30.86s | 33.78s | 42.39s |
+| **4** | 0.09s | 0.14s | 1.40s | 0.13s | 0.19s | 0.30s | 0.45s | 0.78s | 1.53s | 2.93s | 7.55s | 15.13s |
+| **8** | 0.13s | 0.14s | 0.14s | 0.15s | 0.20s | 0.30s | 0.49s | 0.81s | 1.47s | 3.03s | 7.66s | 16.50s |
+| **16** | 0.22s | 0.13s | 0.15s | 0.17s | 0.25s | 0.38s | 0.58s | 1.08s | 1.93s | 3.74s | 8.19s | 17.65s |
+| **32** | 0.12s | 0.15s | 0.17s | 0.23s | 0.35s | 0.51s | 0.88s | 1.50s | 2.86s | 5.58s | 11.16s | 21.55s |
+| **64** | 0.12s | 0.15s | 0.21s | 0.33s | 0.52s | 0.79s | 1.40s | 2.50s | 4.76s | 9.78s | 18.99s | 31.37s |
+| **128** | 0.11s | 0.15s | 0.21s | 0.34s | 0.50s | 0.82s | 1.40s | 2.53s | 4.80s | 9.61s | 18.77s | 31.37s |
+| **256** | 0.13s | 0.15s | 0.20s | 0.34s | 0.51s | 0.82s | 1.39s | 2.60s | 4.98s | 9.71s | 19.30s | 31.34s |
+| **512** | 0.19s | 0.16s | 0.22s | 0.36s | 0.51s | 0.83s | 1.48s | 2.63s | 4.99s | 9.61s | 19.17s | 31.57s |
+| **1024** | 0.33s | 0.14s | 0.23s | 0.37s | 0.53s | 0.86s | 1.49s | 2.70s | 5.24s | 9.93s | 19.90s | 31.73s |
+| **2048** | 0.63s | 0.15s | 0.24s | 0.40s | 0.56s | 0.94s | 1.58s | 2.84s | 5.17s | 10.30s | 19.75s | 32.02s |
+| **4096** | 1.27s | 0.19s | 0.31s | 0.47s | 0.68s | 1.03s | 1.61s | 3.01s | 5.55s | 10.54s | 21.23s | 31.61s |
+| **8192** | 2.56s | 0.26s | 0.39s | 0.58s | 0.76s | 1.13s | 2.23s | 3.60s | 6.15s | 11.86s | 23.43s | 31.97s |
+| **16384** | 5.50s | 0.31s | 0.40s | 0.62s | 1.06s | 1.82s | 2.95s | 4.45s | 7.67s | 14.35s | 26.98s | 33.51s |
 
 ---
 
@@ -47,28 +48,28 @@ Below is the achieved request throughput (Requests/sec) for each context size an
 
 | Context \ Users | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **8** | 6.6 | 10.4 | 2.0 | 25.1 | 32.1 | 35.9 | 38.7 | 39.7 | 39.5 | 35.3 | 40.3 | 39.1 |
-| **16** | 6.0 | 10.0 | 18.1 | 24.6 | 23.1 | 35.5 | 38.5 | 39.6 | 40.0 | 39.9 | 38.6 | 32.7 |
-| **32** | 5.4 | 9.0 | 16.5 | 22.0 | 21.3 | 28.8 | 30.1 | 30.8 | 31.4 | 31.2 | 30.9 | 30.4 |
-| **64** | 0.3 | 9.1 | 15.7 | 18.8 | 20.9 | 22.9 | 24.1 | 24.4 | 24.6 | 24.1 | 23.9 | 23.0 |
-| **128** | 0.0 | 11.0 | 14.1 | 18.9 | 20.7 | 22.6 | 23.8 | 24.4 | 24.4 | 23.7 | 24.5 | 22.3 |
-| **256** | 0.0 | 8.6 | 13.9 | 18.1 | 20.8 | 22.3 | 23.3 | 23.9 | 24.1 | 24.1 | 22.7 | 23.4 |
-| **512** | 0.1 | 10.0 | 13.5 | 17.4 | 20.6 | 21.9 | 22.7 | 23.2 | 23.3 | 23.1 | 23.0 | 22.6 |
-| **1024** | 0.0 | 8.6 | 13.3 | 17.2 | 19.3 | 20.6 | 21.7 | 22.1 | 22.0 | 21.6 | 22.3 | 21.3 |
-| **2048** | 0.0 | 7.5 | 12.4 | 15.2 | 17.4 | 18.8 | 19.4 | 19.4 | 19.4 | 19.4 | 19.5 | 18.9 |
-| **4096** | 0.0 | 6.7 | 11.0 | 13.2 | 14.9 | 13.4 | 15.2 | 16.0 | 16.2 | 16.0 | 16.0 | 15.0 |
-| **8192** | 0.0 | 1.3 | 7.8 | 9.9 | 8.5 | 10.9 | 11.9 | 11.9 | 11.7 | 11.6 | 11.6 | 6.6 |
-| **16384** | 0.0 | 2.9 | 3.9 | 5.2 | 6.5 | 7.3 | 7.4 | 7.8 | 7.6 | 7.5 | 6.1 | 6.3 |
+| **4** | 9.6 | 12.5 | 2.8 | 55.8 | 72.2 | 80.6 | 89.1 | 91.5 | 92.9 | 83.3 | 81.6 | 84.2 |
+| **8** | 7.6 | 13.1 | 26.7 | 50.0 | 67.1 | 78.1 | 83.0 | 90.2 | 93.3 | 81.6 | 80.2 | 80.2 |
+| **16** | 4.5 | 14.2 | 24.9 | 44.8 | 54.4 | 60.3 | 67.0 | 67.4 | 70.6 | 70.8 | 69.9 | 68.0 |
+| **32** | 8.0 | 12.2 | 21.9 | 33.0 | 37.7 | 42.5 | 44.0 | 46.9 | 47.0 | 47.3 | 46.9 | 50.1 |
+| **64** | 8.2 | 12.5 | 18.0 | 23.5 | 24.7 | 26.9 | 27.0 | 27.6 | 28.2 | 26.8 | 27.3 | 26.5 |
+| **128** | 9.0 | 12.1 | 17.5 | 23.0 | 26.1 | 26.1 | 26.6 | 27.4 | 27.9 | 27.2 | 27.6 | 26.5 |
+| **256** | 7.3 | 13.1 | 18.6 | 23.3 | 25.0 | 26.1 | 26.9 | 26.7 | 26.9 | 27.0 | 26.9 | 26.5 |
+| **512** | 5.0 | 12.3 | 16.9 | 22.1 | 25.5 | 25.7 | 25.7 | 26.8 | 26.8 | 27.3 | 27.2 | 25.6 |
+| **1024** | 3.0 | 13.3 | 16.8 | 20.6 | 23.6 | 24.9 | 25.6 | 26.0 | 25.8 | 26.4 | 26.1 | 25.2 |
+| **2048** | 1.6 | 12.4 | 15.9 | 19.6 | 22.7 | 23.2 | 24.5 | 25.0 | 26.1 | 25.6 | 26.3 | 24.4 |
+| **4096** | 0.8 | 9.7 | 12.8 | 16.7 | 19.2 | 21.3 | 23.8 | 23.8 | 24.6 | 25.1 | 24.7 | 23.9 |
+| **8192** | 0.4 | 7.5 | 10.0 | 13.8 | 17.4 | 19.7 | 18.8 | 20.9 | 22.4 | 22.6 | 22.6 | 22.0 |
+| **16384** | 0.2 | 6.1 | 8.6 | 10.8 | 12.1 | 13.3 | 14.8 | 17.4 | 18.8 | 19.1 | 19.9 | 18.5 |
 
 ---
 
 ## 💡 Key SRE & DevOps Insights
 
-### 1. Concurrency Bottlenecks & Scaling Limits
-* **Stability Up to Concurrency 512**: The QAT INT4 model maintains **100% request success rate** for context windows up to 2048 tokens and concurrencies up to **512 concurrent users**.
-* **Success Rate Degradation**: At **1024 concurrent users**, the success rate drops slightly for larger context sizes. At **2048 concurrent users**, success rates fall to **~70-74%** for small context windows (8–512 tokens) and drop to **~22%** for the 16K context window under high memory pressure.
-* **Prefill vs. Execution Latency**: For very high concurrencies (1024 and 2048), the average request latency is significantly dominated by queuing and prefill wait times, reaching up to **46.55 seconds** for 16K context size at 2048 concurrency.
+### 1. Superior Scaling of AWS EC2 Instance
+* **100% Success Rate Up to 1024 Users**: Across all context windows from 4 to 16,384 tokens, the L4 GPU on AWS EC2 `g6.2xlarge` maintained a **100% request success rate up to 1024 concurrent users**. This represents a major scalability improvement over the GCP Cloud Run container, which began degrading success rates at 1024 users.
+* **Controlled Concurrency Starvation**: At **2048 concurrent users**, the success rate degraded gracefully to **~61.8%** for the largest 16K context window, while remaining at **100%** for small context windows (under 32 tokens).
 
-### 2. Standard vs. QAT Comparison
-* **VRAM Capacity Boost**: The 12B Standard (bfloat16) model leaves 0 GB of free VRAM for the KV cache on a single L4 GPU, causing stability issues at concurrencies above 8.
-* **The QAT Advantage**: The 12B QAT (w4a16) model frees up **~18 GB of VRAM** for the KV cache, permitting **100% success rate up to 512 concurrent users** (a ~64x improvement in concurrency capacity).
+### 2. Prefill Latency and Throughput Efficiency
+* **Prefill Latency**: Prefill and queuing time scaled linearly with concurrency. At concurrency 1024, latency is only **~19s** for 1K context windows and **~26.98s** for 16K context windows.
+* **Peak Throughput**: Peak throughput reached **93.3 Requests/sec** at context size 8 with concurrency 256, proving the high-throughput capabilities of the QAT model weights combined with vLLM's FP8 KV cache quantization.

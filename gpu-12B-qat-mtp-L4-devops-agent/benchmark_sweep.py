@@ -8,6 +8,15 @@ import time
 import httpx
 import matplotlib.pyplot as plt
 
+# Load AWS credentials if .aws_creds exists
+aws_creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aws_creds")
+if os.path.exists(aws_creds_path):
+    with open(aws_creds_path, "r") as f:
+        for line in f:
+            if "=" in line:
+                key, val = line.strip().split("=", 1)
+                os.environ[key] = val
+
 # Increase file descriptor limit for high concurrency
 try:
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -18,10 +27,30 @@ except Exception as e:
 
 
 # Helper to get service URL
-def discover_vllm_url(service_name="gpu-12b-qat-mtp"):
+def discover_vllm_url(service_name="gpu-12b-qat-l4-devops-agent"):
     if os.getenv("VLLM_BASE_URL"):
         return os.getenv("VLLM_BASE_URL")
 
+    # Try AWS first
+    if os.getenv("AWS_ACCESS_KEY_ID") or os.path.exists(os.path.expanduser("~/.aws/credentials")):
+        try:
+            import boto3
+            ec2 = boto3.client("ec2", region_name="us-east-1")
+            response = ec2.describe_instances(
+                Filters=[
+                    {"Name": "tag:Name", "Values": [service_name]},
+                    {"Name": "instance-state-name", "Values": ["running"]},
+                ]
+            )
+            for reservation in response.get("Reservations", []):
+                for instance in reservation.get("Instances", []):
+                    ip = instance.get("PublicIpAddress")
+                    if ip:
+                        return f"http://{ip}:8080"
+        except Exception as e:
+            print(f"Error discovering AWS URL: {e}")
+
+    # Fallback to GCP
     cmd = [
         "gcloud",
         "run",
@@ -39,11 +68,13 @@ def discover_vllm_url(service_name="gpu-12b-qat-mtp"):
         if res.returncode == 0:
             return res.stdout.strip()
     except Exception as e:
-        print(f"Error discovering URL: {e}")
+        print(f"Error discovering GCP URL: {e}")
     return None
 
 
 def get_auth_token():
+    if os.getenv("AWS_ACCESS_KEY_ID") or os.path.exists(os.path.expanduser("~/.aws/credentials")):
+        return ""
     import subprocess
 
     try:
@@ -116,8 +147,8 @@ async def run_sweep():
     except Exception as e:
         print(f"Warning: Could not get active model ID: {e}")
 
-    # Sweep dimensions requested: 8, 16, 32..16K context window and 1, 2..2048 concurrent users
-    context_sizes = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    # Sweep dimensions requested: 4, 8, 16..16K context window and 1, 2..2048 concurrent users
+    context_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
     concurrencies = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 
     # Pre-generate and cache prompts
@@ -221,8 +252,8 @@ async def run_sweep():
     print(f"\nCSV results saved to {csv_file}")
 
     # Generate Matrices for Markdown Report
-    latency_matrix = {size: {} for size in context_sizes}
-    throughput_matrix = {size: {} for size in context_sizes}
+    latency_matrix: dict[int, dict[int, str]] = {size: {} for size in context_sizes}
+    throughput_matrix: dict[int, dict[int, str]] = {size: {} for size in context_sizes}
     for r in all_results:
         latency_matrix[r["context_size"]][r["concurrency"]] = f"{r['avg_latency']:.2f}s"
         throughput_matrix[r["context_size"]][r["concurrency"]] = f"{r['req_per_sec']:.1f}"
@@ -258,7 +289,7 @@ async def run_sweep():
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12))
 
         # Select representative context sizes for plotting
-        plot_sizes = [8, 128, 1024, 8192, 16384]
+        plot_sizes = [4, 128, 1024, 8192, 16384]
         markers = ["o", "s", "d", "^", "v"]
 
         # Latency subplot

@@ -2,7 +2,7 @@
 PROJECT_ID ?= aisprint-491218
 REGION ?= us-east4
 BUCKET_NAME ?= $(PROJECT_ID)-bucket
-SERVICE_NAME ?= gpu-12b-qat-mtp
+SERVICE_NAME ?= gpu-12b-qat-l4-devops-agent
 MODEL_PATH ?= gemma-4-12B-it-qat-w4a16-ct
 
 install:

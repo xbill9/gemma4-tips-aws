@@ -13,5 +13,4 @@ mypy
 types-requests
 openai
 httpx
-
-
+boto3
