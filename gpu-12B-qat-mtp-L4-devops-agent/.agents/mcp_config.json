@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "gpu-devops-agent": {
+      "command": "python3",
+      "args": [
+        "/home/xbill/gemma4-tips/gpu-12B-qat-mtp-L4-devops-agent/server.py"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
+        "GOOGLE_CLOUD_LOCATION": "us-east4",
+        "VLLM_BASE_URL": "https://gpu-12b-qat-mtp-289270257791.us-east4.run.app",
+        "MODEL_NAME": "/mnt/models/gemma-4-12B-it-qat-w4a16-ct"
+      }
+    }
+  }
+}

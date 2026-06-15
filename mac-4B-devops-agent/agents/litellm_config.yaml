@@ -1,0 +1,12 @@
+model_list:
+  - model_name: "gemma4-local"
+    litellm_params:
+      model: "openai/gemma4:e4b" # Tell LiteLLM it's an OpenAI-style endpoint
+      api_base: "http://localhost:8000/v1" # Your local Ollama/vLLM IP
+      api_key: "none"
+    router_settings:
+      model_group_alias:
+        "gemini-2.0-flash": "gemma4-local"
+        "gemini-2.0-flash-lite": "gemma4-local"
+        "gemini-1.5-flash": "gemma4-local"
+        "gemini-1.5-pro": "gemma4-local"

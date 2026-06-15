@@ -1,0 +1,661 @@
+[
+  {
+    "insertId": "6a239b19000a840d6a28e05d",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81",
+      "scaling_reason": "DEPLOYMENT_ROLLOUT"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:21.696693009Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "INFO",
+    "textPayload": "Starting new instance. Reason: DEPLOYMENT_ROLLOUT - Instance started due to traffic shifting between revisions due to deployment, traffic split adjustment, or deployment health check.",
+    "timestamp": "2026-06-06T03:59:21.689165Z"
+  },
+  {
+    "insertId": "6a239b1b000a423611e00179",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:23.681787456Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "GCSFuse is mounted with bucket aisprint-491218-bucket. Enable GCSFuse logging with mount options for more logs",
+    "timestamp": "2026-06-06T03:59:23.672310Z"
+  },
+  {
+    "insertId": "6a239b1b000b1b1228203010",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.011808392Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.726409\" severity=INFO message=\"GCSFuse Config\" mount-id=aisprint-491218-bucket-84796791 \"CLI Flags\"=\"map[app-name:serverless dir-mode:777 file-mode:666 foreground:true gid:1000 ignore-interrupts:true implicit-dirs:true log-format:text o:[ro,allow_other] uid:1000]\"",
+    "timestamp": "2026-06-06T03:59:23.727826Z"
+  },
+  {
+    "insertId": "6a239b1b000b1c9e3c172e7b",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.011808392Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.726441\" severity=INFO message=\"GCSFuse Config\" mount-id=aisprint-491218-bucket-84796791 \"Full Config\"=\"&{AppName:serverless CacheDir: CloudProfiler:{AllocatedHeap:true Cpu:true Enabled:false Goroutines:false Heap:true Label:gcsfuse-0.0.0 Mutex:false ServiceName:gcsfuse} Debug:{ExitOnInvariantViolation:false Fuse:false Gcs:false LogMutex:false} DisableAutoconfig:false DisableListAccessCheck:true DummyIo:{Enable:false PerMbLatency:0s ReaderLatency:0s} EnableAtomicRenameObject:true EnableGoogleLibAuth:true EnableHns:true EnableNewReader:true EnableStandardSymlinks:true EnableTypeCacheDeprecation:true EnableUnsupportedPathSupport:true FileCache:{CacheFileForRangeRead:false DownloadChunkSizeMb:200 EnableCrc:false EnableExperimentalSharedChunkCache:false EnableODirect:false EnableParallelDownloads:false ExcludeRegex: ExperimentalDisableSizeCalculationFix:false ExperimentalEnableChunkCache:false ExperimentalParallelDownloadsDefaultOn:true IncludeRegex: MaxParallelDownloads:16 MaxSizeMb:-1 ParallelDownloadsPerFile:16 SharedCacheChunkSizeMb:8 WriteBufferSize:4194304} FileSystem:{CongestionThreshold:0 DirMode:511 DisableParallelDirops:false EnableKernelReader:false ExperimentalEnableDentryCache:false ExperimentalEnablePirlo:false ExperimentalEnableReaddirplus:false ExperimentalODirect:false FileMode:438 FuseOptions:[ro allow_other] Gid:1000 IgnoreInterrupts:true InactiveMrdCacheSize:1000 KernelListCacheTtlSecs:0 KernelParamsFile: MaxBackground:0 MaxReadAheadKb:0 PreconditionErrors:true RenameDirLimit:0 TempDir: Uid:1000} Foreground:true GcsAuth:{AnonymousAccess:false KeyFile: ReuseTokenFromUrl:true TokenUrl:} GcsConnection:{BillingProject: ClientProtocol:http1 CustomEndpoint: EnableHttpDnsCache:true ExperimentalEnableJsonRead:false ExperimentalLocalSocketAddress: GrpcConnPoolSize:1 GrpcPathStrategy:direct-path-with-fallback HttpClientTimeout:0s LimitBytesPerSec:-1 LimitOpsPerSec:-1 MaxConnsPerHost:0 MaxIdleConnsPerHost:100 SequentialReadSizeMb:200} GcsRetries:{ChunkRetryDeadlineSecs:120 ChunkTransferTimeoutSecs:10 ExperimentalNonrapidFolderApiStallRetry:false MaxRetryAttempts:9223372036854775807 MaxRetrySleep:30s Multiplier:2 ReadStall:{Enable:true InitialReqTimeout:20s MaxReqTimeout:20m0s MinReqTimeout:1.5s ReqIncreaseRate:15 ReqTargetPercentile:0.99}} ImplicitDirs:true List:{EnableEmptyManagedFolders:false} Logging:{FilePath: Format:text LogRotate:{BackupFileCount:10 Compress:true MaxFileSizeMb:512} Severity:INFO WireLog:} MachineType: MetadataCache:{DeprecatedStatCacheCapacity:20460 DeprecatedStatCacheTtl:1m0s DeprecatedTypeCacheTtl:1m0s EnableMetadataPrefetch:false EnableNonexistentTypeCache:false ExperimentalMetadataPrefetchOnMount:disabled MetadataPrefetchEntriesLimit:5000 MetadataPrefetchMaxWorkers:10 NegativeTtlSecs:5 StatCacheMaxSizeMb:34 TtlSecs:60 TypeCacheMaxSizeMb:4} Metrics:{BufferSize:256 CloudMetricsExportIntervalSecs:0 ExperimentalEnableGrpcMetrics:true PrometheusPort:0 StackdriverExportInterval:0s UseNewNames:false Workers:3} Mrd:{PoolSize:4} OnlyDir: Profile: Read:{BlockSizeMb:16 EnableBufferedRead:false GlobalMaxBlocks:40 InactiveStreamTimeout:10s MaxBlocksPerHandle:20 MinBlocksPerHandle:4 RandomSeekThreshold:3 StartBlocksPerHandle:1} Trace:{Exporters:[gcpexporter] ProjectId: SamplingRatio:0} WorkloadInsight:{ForwardMergeThresholdMb:0 OutputFile: Visualize:false} Write:{BlockSizeMb:32 CreateEmptyFile:false EnableRapidAppends:true EnableStreamingWrites:true FinalizeFileForRapid:false GlobalMaxBlocks:4 MaxBlocksPerFile:1}}\"",
+    "timestamp": "2026-06-06T03:59:23.728222Z"
+  },
+  {
+    "insertId": "6a239b1c0000f12307956f85",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.345512721Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.729534\" severity=INFO message=\"Creating Storage handle...\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.061731Z"
+  },
+  {
+    "insertId": "6a239b1c0000f292baa43598",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.345512721Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.729552\" severity=INFO message=\"UserAgent = gcsfuse/3.9.1 (Go version go1.26.2) (GPN:gcsfuse-serverless) (Cfg:0:0:0:1:0:0) (mount-id:aisprint-491218-bucket-84796791)\\n\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.062098Z"
+  },
+  {
+    "insertId": "6a239b1c000607de801651a5",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.729618\" severity=INFO message=\"Calling cred.UniverseDomain request for \\\"credentials\\\" with deadline=30s\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395230Z"
+  },
+  {
+    "insertId": "6a239b1c000608ea8b978b6f",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.729885\" severity=INFO message=\"Success in fetching cred.UniverseDomain\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395498Z"
+  },
+  {
+    "insertId": "6a239b1c000608f0d659b73f",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.730276\" severity=INFO message=\"Creating a new server...\\n\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395504Z"
+  },
+  {
+    "insertId": "6a239b1c000609d3d6201fea",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.730291\" severity=INFO message=\"MRD cache (LRU-based) enabled with maxSize=1000 (pools closed-file MRDs)\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395731Z"
+  },
+  {
+    "insertId": "6a239b1c000609d7cd9789ac",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.730299\" severity=INFO message=\"Set up root directory for bucket aisprint-491218-bucket\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395735Z"
+  },
+  {
+    "insertId": "6a239b1c00060a789c54ba56",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.730313\" severity=INFO message=\"GetStorageLayout <- (aisprint-491218-bucket)\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.395896Z"
+  },
+  {
+    "insertId": "6a239b1c00060b2f24f14440",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.730336\" severity=INFO message=\"Calling GetStorageLayout request for \\\"projects/_/buckets/aisprint-491218-bucket/storageLayout\\\" with deadline=30s\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396079Z"
+  },
+  {
+    "insertId": "6a239b1c00060be6eddf6250",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.803866\" severity=INFO message=\"GetStorageLayout -> (aisprint-491218-bucket) 73 msec\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396262Z"
+  },
+  {
+    "insertId": "6a239b1c00060c816d208904",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.803932\" severity=INFO message=\"Calling cred.UniverseDomain request for \\\"credentials\\\" with deadline=30s\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396417Z"
+  },
+  {
+    "insertId": "6a239b1c00060d734d93e1b8",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.804301\" severity=INFO message=\"Success in fetching cred.UniverseDomain\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396659Z"
+  },
+  {
+    "insertId": "6a239b1c00060e10d83eb10f",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.807271\" severity=INFO message=\"Mounting file system \\\"aisprint-491218-bucket\\\"...\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396816Z"
+  },
+  {
+    "insertId": "6a239b1c00060e14b37b4c04",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2F%2Fvar%2Flog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T03:59:24.677753097Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "time=\"06/06/2026 03:59:23.807854\" severity=INFO message=\"File system has been successfully mounted.\" mount-id=aisprint-491218-bucket-84796791",
+    "timestamp": "2026-06-06T03:59:24.396820Z"
+  },
+  {
+    "insertId": "6a239b44000e81533de117e6",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2Fstdout",
+    "receiveTimestamp": "2026-06-06T04:00:04.959295706Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "WARNING 06-06 04:00:04 [argparse_utils.py:257] With `vllm serve`, you should provide the model as a positional argument or in a config file instead of via the `--model` option. The `--model` option will be removed in a future version.",
+    "timestamp": "2026-06-06T04:00:04.950611Z"
+  },
+  {
+    "insertId": "6a239b44000e8f2b2f2856bc",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-06-06T04:00:04.962406697Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "usage: vllm serve [model_tag] [options]",
+    "timestamp": "2026-06-06T04:00:04.954155Z"
+  },
+  {
+    "insertId": "6a239b44000e8f3af98fac85",
+    "labels": {
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-06-06T04:00:04.962406697Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "vllm serve: error: argument --limit-mm-per-prompt: Value {image:0,audio:0,video:0} cannot be converted to <function loads at 0x7f882f29d3a0>.",
+    "timestamp": "2026-06-06T04:00:04.954170Z"
+  },
+  {
+    "insertId": "6a239b4a00015c404352482f",
+    "labels": {
+      "container_name": "vllm-openai-1",
+      "instanceId": "002f8ffd4705cdcb9744f7927e76904ea38e95e7b530133d369d94b89bde22e5a84e80627d46cd10ee2fa64f986269617654e0198de9b588b4974fa6d284a4ea158187401dae200558ae3c29c5d01bd2db774271cbaa601d81"
+    },
+    "logName": "projects/aisprint-491218/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2026-06-06T04:00:10.096933141Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "WARNING",
+    "textPayload": "Container called exit(2).",
+    "timestamp": "2026-06-06T04:00:10.089029Z"
+  },
+  {
+    "insertId": "-jd2s63e2au02",
+    "logName": "projects/aisprint-491218/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "methodName": "/Services.ReplaceService",
+      "resourceName": "namespaces/aisprint-491218/revisions/gpu-12b-l4-devops-agent-00012-86b",
+      "response": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.Revision",
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Revision",
+        "metadata": {
+          "annotations": {
+            "autoscaling.knative.dev/maxScale": "1",
+            "run.googleapis.com/client-name": "gcloud",
+            "run.googleapis.com/client-version": "571.0.0",
+            "run.googleapis.com/cpu-throttling": "false",
+            "run.googleapis.com/execution-environment": "gen2",
+            "run.googleapis.com/gpu-zonal-redundancy-disabled": "true",
+            "run.googleapis.com/operation-id": "b0ddc0b9-bb84-4569-b996-3f0ce77aed96",
+            "run.googleapis.com/startup-cpu-boost": "true",
+            "serving.knative.dev/creator": "xbill@glitnir.com"
+          },
+          "creationTimestamp": "2026-06-06T03:59:17.631607Z",
+          "generation": 1,
+          "labels": {
+            "client.knative.dev/nonce": "prajoryfcf",
+            "cloud.googleapis.com/location": "us-east4",
+            "run.googleapis.com/satisfiesPzs": "true",
+            "run.googleapis.com/startupProbeType": "Custom",
+            "serving.knative.dev/configuration": "gpu-12b-l4-devops-agent",
+            "serving.knative.dev/configurationGeneration": "12",
+            "serving.knative.dev/route": "gpu-12b-l4-devops-agent",
+            "serving.knative.dev/service": "gpu-12b-l4-devops-agent",
+            "serving.knative.dev/serviceUid": "ff7ac155-12ab-4634-9c17-1482f952ef55"
+          },
+          "name": "gpu-12b-l4-devops-agent-00012-86b",
+          "namespace": "289270257791",
+          "ownerReferences": [
+            {
+              "apiVersion": "serving.knative.dev/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Configuration",
+              "name": "gpu-12b-l4-devops-agent",
+              "uid": "49bb1bf6-7654-48ca-bc74-c9a804d152b8"
+            }
+          ],
+          "resourceVersion": "AAZTjdCQklc",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/289270257791/revisions/gpu-12b-l4-devops-agent-00012-86b",
+          "uid": "2d6f62bb-a9a7-4407-9818-c1dfc9999422"
+        },
+        "spec": {
+          "containerConcurrency": 4,
+          "containers": [
+            {
+              "args": [
+                "--model=google/gemma-4-12B-it-qat-w4a16-ct",
+                "--dtype=bfloat16",
+                "--quantization=compressed-tensors",
+                "--max-model-len=16384",
+                "--disable-chunked-mm-input",
+                "--gpu-memory-utilization=0.95",
+                "--kv-cache-dtype=nvfp4",
+                "--tensor-parallel-size=1",
+                "--max-num-seqs=8",
+                "--enable-chunked-prefill",
+                "--max-num-batched-tokens=4096",
+                "--enable-auto-tool-choice",
+                "--tool-call-parser=gemma4",
+                "--reasoning-parser=gemma4",
+                "--async-scheduling",
+                "--enforce-eager",
+                "--limit-mm-per-prompt={image:0,audio:0,video:0}",
+                "--host=0.0.0.0",
+                "--port=8000"
+              ],
+              "env": [
+                {
+                  "name": "VLLM_ENABLE_CUDA_COMPATIBILITY",
+                  "value": "1"
+                },
+                {
+                  "name": "VLLM_USE_V1",
+                  "value": "0"
+                },
+                {
+                  "name": "HF_TOKEN",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "hf-token"
+                    }
+                  }
+                }
+              ],
+              "image": "mirror.gcr.io/vllm/vllm-openai@sha256:55c9bcee9fc66644b139fddae8a7a03e4c0c8a25ab5c64b0ce614554a8abf5d5",
+              "name": "vllm-openai-1",
+              "ports": [
+                {
+                  "containerPort": 8000,
+                  "name": "http1"
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "8",
+                  "memory": "32Gi",
+                  "nvidia.com/gpu": "1"
+                }
+              },
+              "startupProbe": {
+                "failureThreshold": 10,
+                "httpGet": {
+                  "path": "/health",
+                  "port": 8000
+                },
+                "initialDelaySeconds": 180,
+                "periodSeconds": 60,
+                "timeoutSeconds": 60
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/mnt/models",
+                  "name": "model-volume"
+                }
+              ]
+            }
+          ],
+          "nodeSelector": {
+            "run.googleapis.com/accelerator": "nvidia-l4"
+          },
+          "serviceAccountName": "289270257791-compute@developer.gserviceaccount.com",
+          "timeoutSeconds": 3600,
+          "volumes": [
+            {
+              "csi": {
+                "driver": "gcsfuse.run.googleapis.com",
+                "readOnly": true,
+                "volumeAttributes": {
+                  "bucketName": "aisprint-491218-bucket"
+                }
+              },
+              "name": "model-volume"
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastTransitionTime": "2026-06-06T04:00:14.893655Z",
+              "message": "The user-provided container failed the configured startup probe checks. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=aisprint-491218&resource=cloud_run_revision/service_name/gpu-12b-l4-devops-agent/revision_name/gpu-12b-l4-devops-agent-00012-86b&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22gpu-12b-l4-devops-agent%22%0Aresource.labels.revision_name%3D%22gpu-12b-l4-devops-agent-00012-86b%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastTransitionTime": "2026-06-06T04:00:14.893655Z",
+              "message": "The user-provided container failed the configured startup probe checks. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=aisprint-491218&resource=cloud_run_revision/service_name/gpu-12b-l4-devops-agent/revision_name/gpu-12b-l4-devops-agent-00012-86b&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22gpu-12b-l4-devops-agent%22%0Aresource.labels.revision_name%3D%22gpu-12b-l4-devops-agent-00012-86b%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "ContainerHealthy"
+            },
+            {
+              "lastTransitionTime": "2026-06-06T03:59:19.159877Z",
+              "message": "Container image import completed.",
+              "status": "True",
+              "type": "ContainerReady"
+            },
+            {
+              "lastTransitionTime": "2026-06-06T03:59:21.582847Z",
+              "message": "Provisioning imported containers completed in 2.42s. Checking container health. This will wait for up to 13m for the configured startup probe, including an initial delay of 3m.",
+              "status": "True",
+              "type": "ResourcesAvailable"
+            },
+            {
+              "lastTransitionTime": "2026-06-06T03:59:21.582847Z",
+              "message": "System will retry after 00:00 from lastTransitionTime for attempt 0.",
+              "reason": "ImmediateRetry",
+              "severity": "Info",
+              "status": "True",
+              "type": "Retry"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "imageDigest": "mirror.gcr.io/vllm/vllm-openai@sha256:55c9bcee9fc66644b139fddae8a7a03e4c0c8a25ab5c64b0ce614554a8abf5d5",
+              "name": "vllm-openai-1"
+            }
+          ],
+          "imageDigest": "mirror.gcr.io/vllm/vllm-openai@sha256:55c9bcee9fc66644b139fddae8a7a03e4c0c8a25ab5c64b0ce614554a8abf5d5",
+          "logUrl": "https://console.cloud.google.com/logs/viewer?project=aisprint-491218&resource=cloud_run_revision/service_name/gpu-12b-l4-devops-agent/revision_name/gpu-12b-l4-devops-agent-00012-86b&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22gpu-12b-l4-devops-agent%22%0Aresource.labels.revision_name%3D%22gpu-12b-l4-devops-agent-00012-86b%22",
+          "observedGeneration": 1
+        }
+      },
+      "serviceName": "run.googleapis.com",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Revision gpu-12b-l4-devops-agent-00012-86b with message: The user-provided container failed the configured startup probe checks. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=aisprint-491218&resource=cloud_run_revision/service_name/gpu-12b-l4-devops-agent/revision_name/gpu-12b-l4-devops-agent-00012-86b&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22gpu-12b-l4-devops-agent%22%0Aresource.labels.revision_name%3D%22gpu-12b-l4-devops-agent-00012-86b%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      }
+    },
+    "receiveTimestamp": "2026-06-06T04:00:15.746790952Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "gpu-12b-l4-devops-agent",
+        "location": "us-east4",
+        "project_id": "aisprint-491218",
+        "revision_name": "gpu-12b-l4-devops-agent-00012-86b",
+        "service_name": "gpu-12b-l4-devops-agent"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "timestamp": "2026-06-06T04:00:14.945435Z"
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "tpu-v6e1-12B": {
+      "command": "python3",
+      "args": [
+        "/home/xbill/gemma4-tips/tpu-12B-v6e1-devops-agent/server.py"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
+        "ACCELERATOR_TYPE": "v6e-1"
+      }
+    }
+  }
+}

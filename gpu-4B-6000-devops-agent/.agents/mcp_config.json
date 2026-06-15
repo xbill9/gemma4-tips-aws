@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "gpu-4b-6000-devops-agent": {
+      "command": "python3",
+      "args": [
+        "/home/xbill/gemma4-tips/gpu-4B-6000-devops-agent/server.py"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
+        "GOOGLE_CLOUD_LOCATION": "us-central1",
+        "VLLM_BASE_URL": "https://gpu-4b-6000-devops-agent-289270257791.us-central1.run.app",
+        "MODEL_NAME": "/mnt/models/gemma-4-E4B-it"
+      }
+    }
+  }
+}

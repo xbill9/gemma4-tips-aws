@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "local-devops-agent": {
+      "command": "python3",
+      "args": [
+        "/home/xbill/gemma4-tips/local-2B-devops-agent/server.py"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
+        "MODEL_NAME": "gemma4-1024:latest",
+        "LOCAL_DOCKER_RUN_CMD": "docker run --name gemma4 -d -p 8000:11434 -e OLLAMA_KV_CACHE_TYPE=q4_0 -e OLLAMA_NUM_PARALLEL=1 -e OLLAMA_NUM_THREADS=4 -v ollama_local_volume:/root/.ollama ollama/ollama:latest"
+      }
+    }
+  }
+}
