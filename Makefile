@@ -12,10 +12,12 @@ SUBDIRS := gpu-26B-6000-devops-agent \
            tpu-31B-devops-agent \
            tpu-12B-v6e1-devops-agent
 
-.PHONY: all clean test lint install deploy $(SUBDIRS)
+.PHONY: all clean test lint install deploy help $(SUBDIRS)
 
 # Default target displays help information
-all:
+all: help
+
+help:
 	@echo "========================================================="
 	@echo " Gemma-4 DevOps Agents - Root Makefile"
 	@echo "========================================================="
@@ -25,6 +27,7 @@ all:
 	@echo "  make lint    - Run 'make lint' in all subdirectories"
 	@echo "  make install - Run 'make install' in all subdirectories"
 	@echo "  make deploy  - Run 'make deploy' in all subdirectories"
+	@echo "  make help    - Show this help message"
 	@echo "========================================================="
 
 # Target-specific variable assignments

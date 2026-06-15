@@ -3,14 +3,22 @@
     "gpu-devops-agent": {
       "command": "python3",
       "args": [
-        "/home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py"
+        "/home/xbill/gemma4-tips-aws/gpu-12B-qat-L4-devops-agent/server.py"
       ],
       "env": {
         "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
-        "GOOGLE_CLOUD_LOCATION": "us-east4",
-        "VLLM_BASE_URL": "https://gpu-12b-qat-l4-devops-agent-289270257791.us-east4.run.app",
         "MODEL_NAME": "/mnt/models/gemma-4-12B-it-qat-w4a16-ct"
       }
+    },
+      "aws-mcp": {
+      "command": "uvx",
+      "timeout": 100000,
+      "transport": "stdio",
+      "args": [
+        "mcp-proxy-for-aws==1.6.0",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata", "AWS_REGION=us-east-1"
+      ]
     }
   }
 }

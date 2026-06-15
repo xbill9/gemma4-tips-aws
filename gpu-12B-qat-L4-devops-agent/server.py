@@ -737,7 +737,18 @@ docker run -d --name vllm-server \\
             "SecurityGroupIds": [sg_id],
             "UserData": user_data,
             "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]}],
+            "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
             "InstanceMarketOptions": {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}},
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/sda1",
+                    "Ebs": {
+                        "VolumeSize": 150,
+                        "VolumeType": "gp3",
+                        "DeleteOnTermination": True,
+                    }
+                }
+            ],
         }
         if subnet_id:
             run_args["SubnetId"] = subnet_id
@@ -757,20 +768,220 @@ docker run -d --name vllm-server \\
 
 
 @mcp.tool()
-def destroy_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
+async def start_ec2(
+    service_name: str = DEFAULT_SERVICE_NAME,
+    model_path: str = "google/gemma-4-12B-it-qat-w4a16-ct",
+    key_name: str = "alinux",
+    subnet_id: Optional[str] = None,
+    instance_type: str = "g6.2xlarge",
+    market_type: str = "on-demand",
+    instance_id: Optional[str] = None,
+) -> str:
     """
-    Terminates the AWS EC2 instance(s) matching the specified service Name tag.
+    Starts an existing stopped EC2 instance, or provisions a new one with NVIDIA L4 GPU if none exists.
 
     Args:
-        service_name: Name tag of the instance(s) to terminate.
+        service_name: Tag Name for the EC2 instance.
+        model_path: Hugging Face repo ID or S3 URI (used if launching a new instance).
+        key_name: AWS EC2 Key Pair name (default: 'alinux').
+        subnet_id: Subnet ID to launch in (optional).
+        instance_type: EC2 instance type (default: 'g6.2xlarge').
+        market_type: Market type for the instance ('spot' or 'on-demand', default: 'on-demand').
+        instance_id: Direct Instance ID to start if it already exists (optional).
     """
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
+
+    # Check if instance already exists (either by instance_id or service_name)
+    existing_instance_ids = []
+    try:
+        if instance_id:
+            res = ec2.describe_instances(InstanceIds=[instance_id])
+            for reservation in res.get("Reservations", []):
+                for inst in reservation.get("Instances", []):
+                    if inst["State"]["Name"] in ["stopped", "stopping"]:
+                        existing_instance_ids.append(inst["InstanceId"])
+        else:
+            res = ec2.describe_instances(
+                Filters=[
+                    {"Name": "tag:Name", "Values": [service_name]},
+                    {"Name": "instance-state-name", "Values": ["stopped", "stopping"]},
+                ]
+            )
+            for reservation in res.get("Reservations", []):
+                for inst in reservation.get("Instances", []):
+                    existing_instance_ids.append(inst["InstanceId"])
+    except Exception as e:
+        logger.info(f"Checking existing instances returned: {e}")
+
+    # If stopped instance exists, start it!
+    if existing_instance_ids:
+        try:
+            ec2.start_instances(InstanceIds=existing_instance_ids)
+            return f"🚀 Successfully requested start for existing stopped EC2 Instance(s): {', '.join(existing_instance_ids)}"
+        except Exception as e:
+            return f"Failed to start existing EC2 instance(s) {existing_instance_ids}:\nError: {str(e)}"
+
+    # Otherwise, provision a new one!
+    # 1. Resolve or create security group vllm-devops-sg
+    sg_name = "vllm-devops-sg"
+    sg_id = None
+    try:
+        sgs = ec2.describe_security_groups(GroupNames=[sg_name])
+        sg_id = sgs["SecurityGroups"][0]["GroupId"]
+    except Exception:
+        try:
+            vpcs = ec2.describe_vpcs(Filters=[{"Name": "is-default", "Values": ["true"]}])
+            vpc_id = vpcs["Vpcs"][0]["VpcId"] if vpcs["Vpcs"] else None
+            if not vpc_id:
+                vpcs = ec2.describe_vpcs()
+                vpc_id = vpcs["Vpcs"][0]["VpcId"] if vpcs["Vpcs"] else None
+
+            sg_res = ec2.create_security_group(
+                GroupName=sg_name, Description="Security Group for vLLM DevOps Agent", VpcId=vpc_id
+            )
+            sg_id = sg_res["GroupId"]
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow SSH"}],
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 8080,
+                        "ToPort": 8080,
+                        "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow vLLM API"}],
+                    },
+                ],
+            )
+        except Exception as e:
+            return f"Failed to create/configure security group: {str(e)}"
+
+    # 2. Resolve Subnet
+    if not subnet_id:
+        try:
+            subnets = ec2.describe_subnets(
+                Filters=[
+                    {"Name": "map-public-ip-on-launch", "Values": ["true"]},
+                    {"Name": "availability-zone", "Values": [f"{AWS_REGION}f", f"{AWS_REGION}d", f"{AWS_REGION}a"]},
+                ]
+            )
+            if subnets["Subnets"]:
+                subnet_id = subnets["Subnets"][0]["SubnetId"]
+            else:
+                subnets = ec2.describe_subnets()
+                subnet_id = subnets["Subnets"][0]["SubnetId"] if subnets["Subnets"] else None
+        except Exception as e:
+            logger.warning(f"Failed to discover subnet: {e}")
+
+    # 3. Retrieve HF Token
+    try:
+        hf_token = await get_secret() or ""
+    except Exception as e:
+        logger.warning(f"Failed to retrieve HF token: {e}. Defaulting to empty.")
+        hf_token = os.getenv("HF_TOKEN") or os.getenv("HF_API_KEY") or ""
+
+    # 4. UserData script
+    quant_arg = (
+        "--quantization compressed-tensors" if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]) else ""
+    )
+    user_data = f"""#!/bin/bash
+if ! command -v docker &> /dev/null; then
+    apt-get update -y
+    apt-get install -y docker.io
+    systemctl start docker
+    systemctl enable docker
+fi
+docker run -d --name vllm-server \\
+  --gpus all \\
+  --ipc=host \\
+  --restart always \\
+  -p 8080:8080 \\
+  -e HF_TOKEN="{hf_token}" \\
+  vllm/vllm-openai:nightly \\
+  --model {model_path} \\
+  {quant_arg} \\
+  --dtype bfloat16 \\
+  --max-model-len 32768 \\
+  --disable-chunked-mm-input \\
+  --gpu-memory-utilization 0.95 \\
+  --kv-cache-dtype fp8 \\
+  --tensor-parallel-size 1 \\
+  --max-num-seqs 8 \\
+  --enable-chunked-prefill \\
+  --max-num-batched-tokens 4096 \\
+  --enable-auto-tool-choice \\
+  --tool-call-parser gemma4 \\
+  --reasoning-parser gemma4 \\
+  --async-scheduling \\
+  --limit-mm-per-prompt '{{}}' \\
+  --host 0.0.0.0 \\
+  --port 8080
+"""
+
+    # 5. Launch EC2 Instance
+    try:
+        run_args = {
+            "ImageId": "ami-012ba162b9cd2729c",  # DLAMI Ubuntu 22.04
+            "InstanceType": instance_type,
+            "MinCount": 1,
+            "MaxCount": 1,
+            "KeyName": key_name,
+            "SecurityGroupIds": [sg_id],
+            "UserData": user_data,
+            "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]}],
+            "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/sda1",
+                    "Ebs": {
+                        "VolumeSize": 150,
+                        "VolumeType": "gp3",
+                        "DeleteOnTermination": True,
+                    }
+                }
+            ],
+        }
+        if subnet_id:
+            run_args["SubnetId"] = subnet_id
+
+        if market_type.lower() == "spot":
+            run_args["InstanceMarketOptions"] = {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}}
+
+        instance = ec2.run_instances(**run_args)
+        inst_id = instance["Instances"][0]["InstanceId"]
+
+        return (
+            f"🚀 Successfully requested AWS EC2 {instance_type} {market_type} Instance deployment for service '{service_name}'.\n"
+            f"Instance ID: `{inst_id}`\n"
+            f"Key Pair: `{key_name}`\n"
+            f"Subnet ID: `{subnet_id}`\n"
+            f"Please wait a few minutes for the instance to initialize and pull the vLLM docker image."
+        )
+    except Exception as e:
+        return f"Failed to deploy AWS EC2 instance:\nError: {str(e)}"
+
+
+@mcp.tool()
+async def destroy_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
+    """
+    Cleans up the vLLM Docker container on the AWS EC2 instance(s) matching the specified service Name tag,
+    without terminating the EC2 instance(s).
+
+    Args:
+        service_name: Name tag of the instance(s) to clean up.
+    """
+    ec2 = boto3.client("ec2", region_name=AWS_REGION)
+    ssm = boto3.client("ssm", region_name=AWS_REGION)
 
     try:
         response = ec2.describe_instances(
             Filters=[
                 {"Name": "tag:Name", "Values": [service_name]},
-                {"Name": "instance-state-name", "Values": ["pending", "running", "stopping", "stopped"]},
+                {"Name": "instance-state-name", "Values": ["pending", "running"]},
             ]
         )
         instance_ids = []
@@ -779,12 +990,66 @@ def destroy_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
                 instance_ids.append(instance["InstanceId"])
 
         if not instance_ids:
-            return f"No active EC2 instances found matching service name tag '{service_name}'."
+            return f"No active EC2 instances found matching service name tag '{service_name}' to clean up."
 
-        ec2.terminate_instances(InstanceIds=instance_ids)
-        return f"🗑️ Successfully requested termination for EC2 Instance(s): {', '.join(instance_ids)}"
+        # Send SSM command to stop and remove container
+        cmd_response = ssm.send_command(
+            InstanceIds=instance_ids,
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": ["docker stop vllm-server || true", "docker rm vllm-server || true"]},
+        )
+        command_id = cmd_response["Command"]["CommandId"]
+
+        return (
+            f"🧹 Successfully requested cleanup of the 'vllm-server' Docker container on EC2 Instance(s): {', '.join(instance_ids)}.\n"
+            f"SSM Command ID: `{command_id}` (EC2 instance(s) remain running)."
+        )
     except Exception as e:
-        return f"Failed to destroy service '{service_name}':\nError: {str(e)}"
+        return f"Failed to clean up container for service '{service_name}':\nError: {str(e)}"
+
+
+@mcp.tool()
+def stop_ec2(
+    service_name: Optional[str] = None,
+    instance_id: Optional[str] = None,
+) -> str:
+    """
+    Stops AWS EC2 instance(s) by service name tag or instance ID.
+
+    Args:
+        service_name: Name tag of the instance(s) to stop (optional).
+        instance_id: Direct Instance ID to stop (optional).
+    """
+    ec2 = boto3.client("ec2", region_name=AWS_REGION)
+
+    instance_ids = []
+
+    if instance_id:
+        instance_ids.append(instance_id)
+    else:
+        target_name = service_name or DEFAULT_SERVICE_NAME
+        try:
+            response = ec2.describe_instances(
+                Filters=[
+                    {"Name": "tag:Name", "Values": [target_name]},
+                    {"Name": "instance-state-name", "Values": ["pending", "running"]},
+                ]
+            )
+            for reservation in response.get("Reservations", []):
+                for inst in reservation.get("Instances", []):
+                    instance_ids.append(inst["InstanceId"])
+        except Exception as e:
+            return f"Failed to search for EC2 instances to stop:\nError: {str(e)}"
+
+    if not instance_ids:
+        target = f"Instance ID '{instance_id}'" if instance_id else f"service tag '{service_name or DEFAULT_SERVICE_NAME}'"
+        return f"No active/pending EC2 instances found to stop matching {target}."
+
+    try:
+        ec2.stop_instances(InstanceIds=instance_ids)
+        return f"🛑 Successfully requested stopping for EC2 Instance(s): {', '.join(instance_ids)}"
+    except Exception as e:
+        return f"Failed to stop EC2 instances {instance_ids}:\nError: {str(e)}"
 
 
 @mcp.tool()
@@ -818,6 +1083,167 @@ def status_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
         return f"### AWS EC2 Status for service tag '{service_name}':\n\n" + "\n".join(instances_info)
     except Exception as e:
         return f"Failed to get status for service '{service_name}':\nError: {str(e)}"
+
+
+@mcp.tool()
+def status_ec2(
+    service_name: Optional[str] = None,
+    instance_id: Optional[str] = None,
+) -> str:
+    """
+    Checks the status of AWS EC2 instance(s) by service name tag or instance ID.
+
+    Args:
+        service_name: Name tag of the instance(s) to check (optional).
+        instance_id: Direct Instance ID to check (optional).
+    """
+    ec2 = boto3.client("ec2", region_name=AWS_REGION)
+
+    filters = []
+    instance_ids = []
+
+    if instance_id:
+        instance_ids.append(instance_id)
+    elif service_name:
+        filters.append({"Name": "tag:Name", "Values": [service_name]})
+    else:
+        filters.append({"Name": "tag:Name", "Values": [DEFAULT_SERVICE_NAME]})
+
+    try:
+        run_args = {}
+        if filters:
+            run_args["Filters"] = filters
+        if instance_ids:
+            run_args["InstanceIds"] = instance_ids
+
+        response = ec2.describe_instances(**run_args)
+        instances_info = []
+        for reservation in response.get("Reservations", []):
+            for inst in reservation.get("Instances", []):
+                info = (
+                    f"- **Instance ID**: `{inst['InstanceId']}`\n"
+                    f"  - **Type**: `{inst['InstanceType']}`\n"
+                    f"  - **State**: `{inst['State']['Name']}`\n"
+                    f"  - **Public IP**: `{inst.get('PublicIpAddress', 'None')}`\n"
+                    f"  - **Public DNS**: `{inst.get('PublicDnsName', 'None')}`\n"
+                    f"  - **Launch Time**: `{inst['LaunchTime']}`\n"
+                )
+                instances_info.append(info)
+
+        if not instances_info:
+            target = f"Instance ID '{instance_id}'" if instance_id else f"service tag '{service_name or DEFAULT_SERVICE_NAME}'"
+            return f"No EC2 instances found matching {target}."
+
+        target_desc = f"Instance ID '{instance_id}'" if instance_id else f"service tag '{service_name or DEFAULT_SERVICE_NAME}'"
+        return f"### AWS EC2 Status for {target_desc}:\n\n" + "\n".join(instances_info)
+    except Exception as e:
+        return f"Failed to get status for EC2 target:\nError: {str(e)}"
+
+
+@mcp.tool()
+async def check_vllm(
+    service_name: str = DEFAULT_SERVICE_NAME,
+    instance_id: Optional[str] = None,
+) -> str:
+    """
+    Checks the status of the vLLM container and engine running on the EC2 instance(s).
+
+    Args:
+        service_name: Name tag of the instance(s) to check.
+        instance_id: Direct Instance ID to check (optional).
+    """
+    ec2 = boto3.client("ec2", region_name=AWS_REGION)
+    ssm = boto3.client("ssm", region_name=AWS_REGION)
+
+    # 1. Resolve instance
+    filters = []
+    instance_ids = []
+    if instance_id:
+        instance_ids.append(instance_id)
+    else:
+        filters.append({"Name": "tag:Name", "Values": [service_name]})
+        filters.append({"Name": "instance-state-name", "Values": ["pending", "running"]})
+
+    try:
+        run_args = {}
+        if filters:
+            run_args["Filters"] = filters
+        if instance_ids:
+            run_args["InstanceIds"] = instance_ids
+
+        response = ec2.describe_instances(**run_args)
+        instances = []
+        for reservation in response.get("Reservations", []):
+            for inst in reservation.get("Instances", []):
+                instances.append(inst)
+    except Exception as e:
+        return f"Failed to describe EC2 instances:\nError: {str(e)}"
+
+    if not instances:
+        target = f"Instance ID '{instance_id}'" if instance_id else f"active service tag '{service_name}'"
+        return f"No active EC2 instances found matching {target}."
+
+    reports = []
+    for inst in instances:
+        inst_id = inst["InstanceId"]
+        state = inst["State"]["Name"]
+        ip = inst.get("PublicIpAddress")
+
+        report = f"### 🖥️ Instance: `{inst_id}` ({state})\n"
+        if state != "running":
+            report += f"❌ Instance is not running (Current State: `{state}`). Skipping container checks.\n"
+            reports.append(report)
+            continue
+
+        if not ip:
+            report += "⚠️ No Public IP associated with this running instance.\n"
+            reports.append(report)
+            continue
+
+        # 2. Check Docker Container status via SSM
+        docker_status = "Unknown (SSM Unreachable)"
+        try:
+            cmd_res = ssm.send_command(
+                InstanceIds=[inst_id],
+                DocumentName="AWS-RunShellScript",
+                Parameters={"commands": ["docker inspect -f '{{.State.Status}}' vllm-server 2>&1"]},
+            )
+            cmd_id = cmd_res["Command"]["CommandId"]
+
+            # Poll for completion (up to 5 seconds)
+            for _ in range(5):
+                await asyncio.sleep(1)
+                try:
+                    result = ssm.get_command_invocation(CommandId=cmd_id, InstanceId=inst_id)
+                    if result["Status"] == "Success":
+                        docker_status = result["StandardOutputContent"].strip()
+                        break
+                    elif result["Status"] in ["Failed", "TimedOut", "Cancelled"]:
+                        docker_status = f"Failed (SSM Status: {result['Status']})"
+                        break
+                except Exception:
+                    pass
+        except Exception as e:
+            docker_status = f"Error querying SSM: {str(e)}"
+
+        report += f"- **Docker Container (`vllm-server`)**: `{docker_status}`\n"
+
+        # 3. Check vLLM HTTP health endpoint
+        http_status = "Unreachable"
+        try:
+            async with httpx.AsyncClient(timeout=3) as http_client:
+                res = await http_client.get(f"http://{ip}:8080/health")
+                if res.status_code == 200:
+                    http_status = "Healthy ✅"
+                else:
+                    http_status = f"Unhealthy (HTTP Code: {res.status_code}) ❌"
+        except Exception as e:
+            http_status = f"Unreachable (Error: {e}) ❌"
+
+        report += f"- **vLLM API Endpoint (`http://{ip}:8080/health`)**: `{http_status}`\n"
+        reports.append(report)
+
+    return "\n".join(reports)
 
 
 @mcp.tool()
@@ -1343,8 +1769,11 @@ async def get_system_status(service_name: str = DEFAULT_SERVICE_NAME) -> str:
                 instances.extend(reservation.get("Instances", []))
 
             if instances:
-                state = instances[0]["State"]["Name"]
-                inst_id = instances[0]["InstanceId"]
+                # Prioritize active (running/pending) instances
+                active_instances = [i for i in instances if i["State"]["Name"] in ["running", "pending"]]
+                target_instance = active_instances[0] if active_instances else instances[0]
+                state = target_instance["State"]["Name"]
+                inst_id = target_instance["InstanceId"]
                 if state == "running":
                     ec2_status = f"🟢 Running ({inst_id})"
                 else:
@@ -1679,12 +2108,15 @@ async def get_help() -> str:
         f"  - *Current Value:* `{VLLM_BASE_URL or 'Not set (auto-discovering)'}`\n\n"
         "### ℹ️ Active Mode Summary\n"
         f"The server is running in **{'AWS' if os.getenv('AWS_ACCESS_KEY_ID') else 'CLOUD RUN'}** mode.\n\n"
-        "---\n\n"
         "### 🧰 Available MCP Tools\n\n"
         "Below is a summary of the tools exposed by this SRE/DevOps agent:\n\n"
         "#### 🐳 Infrastructure & Deployment\n"
+        "- **`start_ec2`**: Starts an existing stopped EC2 instance, or provisions a new one (with NVIDIA L4 GPU) if none exists.\n"
+        "- **`status_ec2`**: Checks the state, type, public IP, DNS, and launch details of EC2 instances.\n"
+        "- **`stop_ec2`**: Safely stops active EC2 instances without deleting the root EBS volumes.\n"
+        "- **`check_vllm`**: Checks the status of the vLLM container and engine running on the EC2 instance(s).\n"
         "- **`deploy_vllm`**: Deploys vLLM to AWS EC2 g6.2xlarge or GCP Cloud Run GPU.\n"
-        "- **`destroy_vllm`**: Terminates the AWS EC2 instance or deletes the Cloud Run vLLM service.\n"
+        "- **`destroy_vllm`**: Cleans up the vLLM Docker container on the AWS EC2 instance without terminating it, or deletes the Cloud Run vLLM service.\n"
         "- **`status_vllm`**: Checks the status of the AWS EC2 instance or Cloud Run vLLM service.\n"
         "- **`update_vllm_scaling`**: Scales EC2 instance type vertically or updates Cloud Run min/max instances.\n"
         "- **`get_vllm_deployment_config`**: Generates the AWS EC2 / GCP deployment command and user data.\n"

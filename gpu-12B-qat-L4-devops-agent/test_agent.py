@@ -101,18 +101,32 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("boto3.client")
-    def test_destroy_vllm(self, mock_boto_client):
-        """Test the destroy_vllm tool with mock EC2 client."""
+    async def test_destroy_vllm(self, mock_boto_client):
+        """Test the destroy_vllm tool with mock EC2/SSM clients."""
         from server import destroy_vllm
 
         mock_ec2 = MagicMock()
-        mock_boto_client.return_value = mock_ec2
+        mock_ssm = MagicMock()
+
+        def side_effect(service, *args, **kwargs):
+            if service == "ec2":
+                return mock_ec2
+            elif service == "ssm":
+                return mock_ssm
+            return MagicMock()
+
+        mock_boto_client.side_effect = side_effect
         mock_ec2.describe_instances.return_value = {"Reservations": [{"Instances": [{"InstanceId": "i-12345"}]}]}
+        mock_ssm.send_command.return_value = {"Command": {"CommandId": "cmd-123"}}
 
-        result = destroy_vllm(service_name="test-service")
+        result = await destroy_vllm(service_name="test-service")
 
-        self.assertIn("Successfully requested termination for EC2 Instance(s): i-12345", result)
-        mock_ec2.terminate_instances.assert_called_with(InstanceIds=["i-12345"])
+        self.assertIn("Successfully requested cleanup of the 'vllm-server' Docker container on EC2 Instance(s): i-12345", result)
+        mock_ssm.send_command.assert_called_with(
+            InstanceIds=["i-12345"],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": ["docker stop vllm-server || true", "docker rm vllm-server || true"]}
+        )
 
     @patch("boto3.client")
     def test_status_vllm(self, mock_boto_client):
