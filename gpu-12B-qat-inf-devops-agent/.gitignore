@@ -22,6 +22,9 @@ Thumbs.db
 venv/
 *.swp
 *.bak
+*.pem
+*.der
+*.key
 level_3-lightsail/.aws_creds
 level_3-fargate/.aws_creds
 adkui-lightsail/.aws_creds
