@@ -87,7 +87,23 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
 
         mock_ec2.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-abc"}]}
         mock_ec2.create_security_group.return_value = {"GroupId": "sg-123"}
-        mock_ec2.describe_subnets.return_value = {"Subnets": [{"SubnetId": "subnet-123"}]}
+        mock_ec2.describe_subnets.return_value = {
+            "Subnets": [
+                {
+                    "SubnetId": "subnet-123",
+                    "VpcId": "vpc-abc",
+                    "AvailabilityZone": "us-east-1b",
+                }
+            ]
+        }
+        mock_ec2.describe_images.return_value = {
+            "Images": [
+                {
+                    "ImageId": "ami-012ba162b9cd2729c",
+                    "CreationDate": "2026-06-20T00:00:00Z",
+                }
+            ]
+        }
         mock_ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-999"}]}
 
         result = await deploy_vllm(

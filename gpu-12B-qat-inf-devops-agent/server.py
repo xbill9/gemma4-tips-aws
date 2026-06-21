@@ -401,9 +401,18 @@ def get_vllm_deployment_config(
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
         model_path = "google/gemma-4-12B-it"
 
-    image_id = "ami-04604f21b81ffbd87" # Fallback for us-east-1
+def _get_inferentia_user_data(model_path: str, hf_token_expr: str) -> str:
+    return f"""#!/bin/bash
+# 1. Resize root partition and filesystem to utilize full volume size
+ROOT_PART=$(findmnt -n -o SOURCE /)
+if [[ "$ROOT_PART" =~ ^(/dev/nvme[0-9]n[0-9])p([0-9]+)$ ]]; then
+    sudo growpart "${{BASH_REMATCH[1]}}" "${{BASH_REMATCH[2]}}" || true
+    sudo resize2fs "$ROOT_PART" || true
+elif [[ "$ROOT_PART" =~ ^(/dev/sd[a-z]|/dev/xvd[a-z])([0-9]+)$ ]]; then
+    sudo growpart "${{BASH_REMATCH[1]}}" "${{BASH_REMATCH[2]}}" || true
+    sudo resize2fs "$ROOT_PART" || true
+fi
 
-    user_data = f"""#!/bin/bash
 if ! command -v docker &> /dev/null; then
     apt-get update -y
     apt-get install -y docker.io
@@ -431,26 +440,215 @@ tensor_parallel_size=$((device_count * 2))
 mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
 chmod -R 777 /home/ubuntu/.cache
 
+# Write patch script to host
+cat << 'EOF' > /home/ubuntu/patch_transformers.py
+import os
+
+# 1. Patch transformers/utils/fx.py
+fx_path = "/opt/conda/lib/python3.12/site-packages/transformers/utils/fx.py"
+os.makedirs(os.path.dirname(fx_path), exist_ok=True)
+with open(fx_path, "w") as f:
+    f.write('''import torch.fx
+
+class HFTracer(torch.fx.Tracer):
+    pass
+
+def symbolic_trace(model, *args, **kwargs):
+    return torch.fx.symbolic_trace(model)
+''')
+print("Patched fx.py")
+
+# 2. Patch transformers/generation/utils.py
+gen_utils_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/utils.py"
+with open(gen_utils_path, "r") as f:
+    content = f.read()
+
+if "SampleDecoderOnlyOutput" not in content:
+    with open(gen_utils_path, "a") as f:
+        f.write("\\n\\nSampleDecoderOnlyOutput = GenerateDecoderOnlyOutput\\nSampleEncoderDecoderOutput = GenerateEncoderDecoderOutput\\n")
+    print("Patched generation/utils.py")
+else:
+    print("generation/utils.py already patched")
+
+# 3. Patch transformers/generation/__init__.py
+gen_init_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/__init__.py"
+with open(gen_init_path, "r") as f:
+    content = f.read()
+
+if "if TYPE_CHECKING:" in content:
+    content = content.replace(
+        "if TYPE_CHECKING:",
+        '_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n\\nif TYPE_CHECKING:'
+    )
+    print("Injected into _import_structure")
+else:
+    content += '\\n_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n'
+
+with open(gen_init_path, "w") as f:
+    f.write(content)
+print("Patched generation/__init__.py")
+
+# 4. Patch vllm_neuron constants to include Gemma4UnifiedForConditionalGeneration
+constants_path = "/opt/vllm/vllm_neuron/worker/constants.py"
+if os.path.exists(constants_path):
+    with open(constants_path, "r") as f:
+        content = f.read()
+    if "Gemma4UnifiedForConditionalGeneration" not in content:
+        content = content.replace(
+            "NEURON_MULTI_MODAL_MODELS = [",
+            "NEURON_MULTI_MODAL_MODELS = [\\n    'Gemma4UnifiedForConditionalGeneration',"
+        )
+        with open(constants_path, "w") as f:
+            f.write(content)
+        print("Patched NEURON_MULTI_MODAL_MODELS in constants.py")
+
+# 5. Patch neuronx_distributed_inference constants to register gemma4unified
+constants_py_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py"
+if os.path.exists(constants_py_path):
+    with open(constants_py_path, "r") as f:
+        content = f.read()
+    if "gemma4unified" not in content:
+        with open(constants_py_path, "a") as f:
+            f.write("\\n\\nMODEL_TYPES['gemma4unified'] = MODEL_TYPES['gemma3']\\n")
+        print("Patched neuronx_distributed_inference constants.py")
+
+# 6. Patch gemma3 modeling to handle missing query_pre_attn_scalar (defaults to head_dim)
+gemma3_modeling_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py"
+if os.path.exists(gemma3_modeling_path):
+    with open(gemma3_modeling_path, "r") as f:
+        content = f.read()
+    
+    old_target = "setattr(self, attribute, getattr(text_config, attribute))"
+    new_target = "setattr(self, attribute, getattr(text_config, attribute, None))"
+    if old_target in content:
+        content = content.replace(old_target, new_target)
+        
+    old_derived = "self.add_derived_config()"
+    new_derived = "if getattr(self, 'query_pre_attn_scalar', None) is None:\\n            self.query_pre_attn_scalar = self.head_dim\\n        self.add_derived_config()"
+    if old_derived in content and "query_pre_attn_scalar = self.head_dim" not in content:
+        content = content.replace(old_derived, new_derived)
+        
+    with open(gemma3_modeling_path, "w") as f:
+        f.write(content)
+    print("Patched modeling_gemma3.py query_pre_attn_scalar fallback")
+
+# 7. Patch attention_base.py to disable flash attention if head_dim > 128
+attention_base_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py"
+if os.path.exists(attention_base_path):
+    with open(attention_base_path, "r") as f:
+        content = f.read()
+    
+    old_code = "if self.attn_kernel_enabled is False:"
+    new_code = "if self.attn_kernel_enabled is False or self.head_dim > 128:"
+    if old_code in content and new_code not in content:
+        content = content.replace(old_code, new_code)
+        with open(attention_base_path, "w") as f:
+            f.write(content)
+        print("Patched attention_base.py to disable flash attention for head_dim > 128")
+EOF
+
+# Write startup script to host
+cat << 'EOF' > /home/ubuntu/patch_and_run.sh
+#!/bin/bash
+set -e
+echo "Upgrading transformers..."
+pip install --upgrade transformers
+
+echo "Running python patcher for transformers..."
+python3 /patch_transformers.py
+
+echo "Registering neuron_quant quantization method in vLLM..."
+cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
+
+from vllm.model_executor.layers.quantization.base_config import QuantizationConfig
+from vllm.model_executor.layers.quantization import register_quantization_config
+import torch
+
+@register_quantization_config("neuron_quant")
+class NeuronQuantConfig(QuantizationConfig):
+    def get_name(self) -> str:
+        return "neuron_quant"
+
+    def get_supported_act_dtypes(self) -> list[torch.dtype]:
+        return [torch.float16, torch.bfloat16]
+
+    @classmethod
+    def get_min_capability(cls) -> int:
+        return 0
+
+    @staticmethod
+    def get_config_filenames() -> list[str]:
+        return []
+
+    @classmethod
+    def from_config(cls, config: dict) -> "NeuronQuantConfig":
+        return cls()
+
+    def get_quant_method(self, layer, prefix):
+        return None
+INNER_EOF
+
+echo "Starting vLLM Server with memory optimizations..."
+python3 -m vllm.entrypoints.openai.api_server \\
+  --model {model_path} \\
+  --quantization neuron_quant \\
+  --max-model-len 4096 \\
+  --tensor-parallel-size 2 \\
+  --max-num-seqs 4 \\
+  --swap-space 0 \\
+  --no-enable-prefix-caching \\
+  --enable-chunked-prefill \\
+  --max-num-batched-tokens 512 \\
+  --async-scheduling \\
+  --host 0.0.0.0 \\
+  --port 8080
+EOF
+chmod +x /home/ubuntu/patch_and_run.sh
+
 docker run -d --name vllm-server \\
   $devices \\
   --ipc=host \\
   --restart always \\
   -p 8080:8080 \\
-  -e HF_TOKEN="$(aws ssm get-parameter --name /vllm/HF_TOKEN --with-decryption --query Parameter.Value --output text 2>/dev/null || echo '')" \\
+  -e HF_TOKEN="{hf_token_expr}" \\
   -e NEURON_CC_FLAGS="--model-type transformer" \\
+  -e NEURON_COMPILER_WORKERS=1 \\
+  -e VLLM_ENGINE_READY_TIMEOUT_S=1800 \\
+  -e VLLM_ENGINE_ITERATION_TIMEOUT_S=600 \\
   -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
+  -v /home/ubuntu/patch_transformers.py:/patch_transformers.py \\
+  -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size $tensor_parallel_size \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
+  bash /patch_and_run.sh
 """
+
+
+@mcp.tool()
+def get_vllm_deployment_config(
+    service_name: str = DEFAULT_SERVICE_NAME,
+    model_path: str = "google/gemma-4-12B-it",
+    key_name: str = "alinux",
+    gpu_memory_utilization: float = 0.95,
+    instance_type: str = "inf2.xlarge",
+) -> str:
+    """
+    Generates the AWS CLI command and UserData script to deploy vLLM to an AWS EC2 Inferentia instance.
+
+    Args:
+        service_name: The Name tag for the EC2 instance.
+        model_path: Hugging Face repo ID or S3 URI of the model.
+        key_name: Key Pair name for SSH access (default: 'alinux').
+        gpu_memory_utilization: The fraction of GPU VRAM to use for KV cache (GPU only, ignored for Inferentia).
+        instance_type: The EC2 instance type (default: 'inf2.xlarge').
+    """
+    if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
+        model_path = "google/gemma-4-12B-it"
+
+    image_id = "ami-04604f21b81ffbd87" # Fallback for us-east-1
+
+    hf_token_expr = '$(aws ssm get-parameter --name /vllm/HF_TOKEN --with-decryption --query Parameter.Value --output text 2>/dev/null || echo \'\')'
+    user_data = _get_inferentia_user_data(model_path, hf_token_expr)
     aws_cmd = (
         f"aws ec2 run-instances \\\n"
         f"  --image-id {image_id} \\\n"
@@ -481,6 +679,7 @@ async def deploy_vllm(
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
     instance_type: str = "inf2.xlarge",
+    market_type: str = "spot",
 ) -> str:
     """
     Deploys vLLM to AWS EC2 instance using AWS Inferentia.
@@ -495,12 +694,14 @@ async def deploy_vllm(
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
 
     # 1. Resolve Subnet and its VPC ID
+    candidate_subnets = []
     vpc_id = None
     if subnet_id:
         try:
             subnets = ec2.describe_subnets(SubnetIds=[subnet_id])
             if subnets["Subnets"]:
                 vpc_id = subnets["Subnets"][0]["VpcId"]
+                candidate_subnets.append((subnet_id, vpc_id, subnets["Subnets"][0].get("AvailabilityZone")))
         except Exception as e:
             logger.warning(f"Failed to describe subnet {subnet_id}: {e}")
 
@@ -509,19 +710,25 @@ async def deploy_vllm(
             subnets = ec2.describe_subnets(
                 Filters=[
                     {"Name": "map-public-ip-on-launch", "Values": ["true"]},
-                    {"Name": "availability-zone", "Values": [f"{AWS_REGION}f", f"{AWS_REGION}d", f"{AWS_REGION}a"]},
                 ]
             )
-            if subnets["Subnets"]:
-                subnet_id = subnets["Subnets"][0]["SubnetId"]
-                vpc_id = subnets["Subnets"][0]["VpcId"]
-            else:
-                subnets = ec2.describe_subnets()
-                if subnets["Subnets"]:
-                    subnet_id = subnets["Subnets"][0]["SubnetId"]
-                    vpc_id = subnets["Subnets"][0]["VpcId"]
+            for s in subnets.get("Subnets", []):
+                # Skip us-east-1a since it doesn't support inf2.xlarge
+                if not s["AvailabilityZone"].endswith("a"):
+                    candidate_subnets.append((s["SubnetId"], s["VpcId"], s["AvailabilityZone"]))
         except Exception as e:
-            logger.warning(f"Failed to discover subnet: {e}")
+            logger.warning(f"Failed to discover subnets: {e}")
+
+        if not candidate_subnets:
+            try:
+                subnets = ec2.describe_subnets()
+                for s in subnets.get("Subnets", []):
+                    candidate_subnets.append((s["SubnetId"], s["VpcId"], s["AvailabilityZone"]))
+            except Exception as e:
+                logger.warning(f"Failed to fetch fallback subnets: {e}")
+
+    if candidate_subnets:
+        vpc_id = candidate_subnets[0][1]
 
     if not vpc_id:
         try:
@@ -576,110 +783,76 @@ async def deploy_vllm(
     hf_token = await get_secret() or ""
 
     # 4. Resolve Image ID and build UserData
-    ami_type = "neuron-ubuntu-22.04"
-    image_id = "ami-04604f21b81ffbd87"
-
+    image_id = "ami-0fd664467b3cf8dfd" if AWS_REGION == "us-east-1" else "ami-01807ad0e6484b5a8"
     try:
-        ssm = boto3.client("ssm", region_name=AWS_REGION)
-        path = f"/aws/service/deeplearning/ami/x86_64/{ami_type}/latest/ami-id"
-        response = ssm.get_parameter(Name=path)
-        image_id = response["Parameter"]["Value"]
+        images_resp = ec2.describe_images(
+            Owners=["amazon"],
+            Filters=[{"Name": "name", "Values": ["*Deep Learning AMI Neuron*Ubuntu 22.04*"]}]
+        )
+        if images_resp.get("Images"):
+            sorted_images = sorted(images_resp["Images"], key=lambda x: x["CreationDate"], reverse=True)
+            image_id = sorted_images[0]["ImageId"]
+            logger.info(f"Dynamically resolved latest DLAMI Neuron AMI ID: {image_id}")
     except Exception as e:
-        logger.info(f"Failed to fetch {ami_type} DLAMI dynamically via SSM: {e}. Using fallback `{image_id}`.")
+        logger.info(f"Failed to describe DLAMI images: {e}. Using fallback `{image_id}`.")
 
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
         logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-12B-it' for Inferentia.")
         model_path = "google/gemma-4-12B-it"
 
-    user_data = f"""#!/bin/bash
-if ! command -v docker &> /dev/null; then
-    apt-get update -y
-    apt-get install -y docker.io
-    systemctl start docker
-    systemctl enable docker
-fi
-
-# Detect available Neuron devices
-devices=""
-device_count=0
-for dev in /dev/neuron*; do
-    if [ -e "$dev" ]; then
-        devices="$devices --device $dev"
-        device_count=$((device_count + 1))
-    fi
-done
-
-if [ $device_count -eq 0 ]; then
-    devices="--device /dev/neuron0"
-    device_count=1
-fi
-tensor_parallel_size=$((device_count * 2))
-
-# Ensure model cache directories exist and have permissions
-mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
-chmod -R 777 /home/ubuntu/.cache
-
-docker run -d --name vllm-server \\
-  $devices \\
-  --ipc=host \\
-  --restart always \\
-  -p 8080:8080 \\
-  -e HF_TOKEN="{hf_token}" \\
-  -e NEURON_CC_FLAGS="--model-type transformer" \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size $tensor_parallel_size \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
-"""
+    user_data = _get_inferentia_user_data(model_path, hf_token)
 
     # 5. Launch EC2 Instance
-    try:
-        run_args = {
-            "ImageId": image_id,
-            "InstanceType": instance_type,
-            "MinCount": 1,
-            "MaxCount": 1,
-            "KeyName": key_name,
-            "SecurityGroupIds": [sg_id],
-            "UserData": user_data,
-            "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]}],
-            "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
-            "InstanceMarketOptions": {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}},
-            "BlockDeviceMappings": [
-                {
-                    "DeviceName": "/dev/sda1",
-                    "Ebs": {
-                        "VolumeSize": 150,
-                        "VolumeType": "gp3",
-                        "DeleteOnTermination": True,
-                    }
+    run_args = {
+        "ImageId": image_id,
+        "InstanceType": instance_type,
+        "MinCount": 1,
+        "MaxCount": 1,
+        "KeyName": key_name,
+        "SecurityGroupIds": [sg_id],
+        "UserData": user_data,
+        "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]}],
+        "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
+        "BlockDeviceMappings": [
+            {
+                "DeviceName": "/dev/sda1",
+                "Ebs": {
+                    "VolumeSize": 150,
+                    "VolumeType": "gp3",
+                    "DeleteOnTermination": True,
                 }
-            ],
-        }
-        if subnet_id:
-            run_args["SubnetId"] = subnet_id
+            }
+        ],
+    }
+    if market_type == "spot":
+        run_args["InstanceMarketOptions"] = {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}}
 
-        instance = ec2.run_instances(**run_args)
-        inst_id = instance["Instances"][0]["InstanceId"]
+    last_error = None
+    for sub_id, v_id, az in candidate_subnets:
+        logger.info(f"Attempting deployment in subnet {sub_id} ({az})...")
+        run_args["SubnetId"] = sub_id
+        try:
+            instance = ec2.run_instances(**run_args)
+            inst_id = instance["Instances"][0]["InstanceId"]
+            market_desc = "Spot" if market_type == "spot" else "On-Demand"
+            return (
+                f"🚀 Successfully requested AWS EC2 {instance_type} {market_desc} Instance deployment for service '{service_name}'.\n"
+                f"Instance ID: `{inst_id}`\n"
+                f"Key Pair: `{key_name}`\n"
+                f"Subnet ID: `{sub_id}` (AZ: {az})\n"
+                f"AMI ID: `{image_id}`\n"
+                f"Please wait a few minutes for the instance to initialize and pull the vLLM docker image."
+            )
+        except Exception as e:
+            err_msg = str(e)
+            logger.warning(f"Failed to launch in subnet {sub_id} ({az}): {err_msg}")
+            if "InsufficientInstanceCapacity" in err_msg or "Unsupported" in err_msg:
+                last_error = e
+                continue
+            else:
+                return f"Failed to deploy AWS EC2 instance:\nError: {err_msg}"
 
-        return (
-            f"🚀 Successfully requested AWS EC2 {instance_type} Spot Instance deployment for service '{service_name}'.\n"
-            f"Instance ID: `{inst_id}`\n"
-            f"Key Pair: `{key_name}`\n"
-            f"Subnet ID: `{subnet_id}`\n"
-            f"AMI ID: `{image_id}`\n"
-            f"Please wait a few minutes for the instance to initialize and pull the vLLM docker image."
-        )
-    except Exception as e:
-        return f"Failed to deploy AWS EC2 instance:\nError: {str(e)}""Failed to deploy AWS EC2 instance:\nError: {str(e)}"
+    return f"Failed to deploy AWS EC2 instance (tried all Availability Zones):\nError: {str(last_error)}"
 
 
 @mcp.tool()
@@ -866,6 +1039,77 @@ tensor_parallel_size=$((device_count * 2))
 mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
 chmod -R 777 /home/ubuntu/.cache
 
+# Write startup and patching script to host
+cat << 'EOF' > /home/ubuntu/patch_and_run.sh
+#!/bin/bash
+set -e
+echo "Upgrading transformers..."
+pip install --upgrade transformers
+
+echo "Patching transformers..."
+mkdir -p /opt/conda/lib/python3.12/site-packages/transformers/utils
+cat << 'INNER_EOF' > /opt/conda/lib/python3.12/site-packages/transformers/utils/fx.py
+import torch.fx
+
+class HFTracer(torch.fx.Tracer):
+    pass
+
+def symbolic_trace(model, *args, **kwargs):
+    return torch.fx.symbolic_trace(model)
+INNER_EOF
+
+cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/transformers/generation/__init__.py
+
+from transformers.generation.utils import GenerateDecoderOnlyOutput, GenerateEncoderDecoderOutput
+SampleDecoderOnlyOutput = GenerateDecoderOnlyOutput
+SampleEncoderDecoderOutput = GenerateEncoderDecoderOutput
+INNER_EOF
+
+echo "Registering neuron_quant quantization method in vLLM..."
+cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
+
+from vllm.model_executor.layers.quantization.base_config import QuantizationConfig
+from vllm.model_executor.layers.quantization import register_quantization_config
+import torch
+
+@register_quantization_config("neuron_quant")
+class NeuronQuantConfig(QuantizationConfig):
+    def get_name(self) -> str:
+        return "neuron_quant"
+
+    def get_supported_act_dtypes(self) -> list[torch.dtype]:
+        return [torch.float16, torch.bfloat16]
+
+    @classmethod
+    def get_min_capability(cls) -> int:
+        return 0
+
+    @staticmethod
+    def get_config_filenames() -> list[str]:
+        return []
+
+    @classmethod
+    def from_config(cls, config: dict) -> "NeuronQuantConfig":
+        return cls()
+
+    def get_quant_method(self, layer, prefix):
+        return None
+INNER_EOF
+
+echo "Starting vLLM Server..."
+python3 -m vllm.entrypoints.openai.api_server \\
+  --model {model_path} \\
+  --quantization neuron_quant \\
+  --max-model-len 16384 \\
+  --tensor-parallel-size $tensor_parallel_size \\
+  --max-num-seqs 8 \\
+  --async-scheduling \\
+  --block-size 16 \\
+  --host 0.0.0.0 \\
+  --port 8080
+EOF
+chmod +x /home/ubuntu/patch_and_run.sh
+
 docker run -d --name vllm-server \\
   $devices \\
   --ipc=host \\
@@ -875,16 +1119,9 @@ docker run -d --name vllm-server \\
   -e NEURON_CC_FLAGS="--model-type transformer" \\
   -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
+  -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size $tensor_parallel_size \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
+  bash /patch_and_run.sh
 """
 
     # 5. Launch EC2 Instance

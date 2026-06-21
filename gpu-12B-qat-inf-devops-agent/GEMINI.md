@@ -1,6 +1,6 @@
 # 🤖 Gemini Workspace Context: AWS Inferentia 12B DevOps Agent
 
-This context guide summarizes the configuration, optimal serving parameters, and capabilities of the self-hosted **Gemma 4 DevOps/SRE Agent** running on **AWS Inferentia** (`inf2` instances).
+This context guide summarizes the configuration, optimal serving parameters, and capabilities of the self-hosted **Gemma 4 DevOps/SRE Agent** running on **[AWS Inferentia](https://aws.amazon.com/ai/machine-learning/inferentia/)** (`inf2` instances).
 
 ---
 
@@ -35,13 +35,16 @@ docker run -d --name vllm-server \
   --max-model-len 16384 \
   --tensor-parallel-size 2 \
   --max-num-seqs 8 \
-  --enable-auto-tool-choice \
-  --tool-call-parser gemma4 \
-  --reasoning-parser gemma4 \
+  --no-enable-prefix-caching \
+  --enable-chunked-prefill \
+  --max-num-batched-tokens 512 \
   --async-scheduling \
   --host 0.0.0.0 \
   --port 8080
 ```
+
+> [!NOTE]
+> **Gemma 4 Tool Calling Options**: If tool calling features are needed and supported by the container, you can pass `--enable-auto-tool-choice`. However, avoid using `--tool-call-parser gemma4` in this container's version of vLLM (v0.16.0), as it causes a `KeyError`. Fallback to `--tool-call-parser functiongemma` if needed.
 
 ### ⚙️ Key Neuron Options & Flags
 
@@ -110,3 +113,14 @@ make run
 ## 📚 Key Source Code File Locations
 - **MCP Server entrypoint**: [server.py](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py)
 - **Test Suite**: [test_agent.py](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/test_agent.py)
+
+---
+
+## 🔗 External Resources
+- **[AWS Inferentia](https://aws.amazon.com/ai/machine-learning/inferentia/)**: AWS Inferentia deep learning hardware accelerator for high-performance and cost-effective inference.
+- **[Gemma 4 on AWS Inferentia Cost Guide](https://lushbinary.com/blog/deploy-gemma-4-aws-ec2-sagemaker-inferentia-cost-guide/)**: Comprehensive deployment and cost guide for hosting Gemma 4 on AWS EC2 and SageMaker with Inferentia.
+- **[vLLM AWS Neuron Installation Guide](https://docs.vllm.ai/en/v0.10.1/getting_started/installation/aws_neuron.html)**: Official installation and configuration guide for running vLLM on AWS Neuron devices.
+- **[AWS Neuron Custom Quantization Guide](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/libraries/nxd-inference/developer_guides/custom-quantization.html)**: Developer guide for custom quantization under the AWS Neuron SDK.
+
+
+
