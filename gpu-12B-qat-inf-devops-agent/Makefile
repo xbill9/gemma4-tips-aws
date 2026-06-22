@@ -24,7 +24,7 @@ clean:
 # Helper to deploy using local python script / server deployment tools
 deploy:
 	@echo "🚀 Deploying vLLM to AWS EC2 (Inferentia) for $(SERVICE_NAME)..."
-	python3 -c "import asyncio, server; asyncio.run(server.deploy_vllm(service_name='$(SERVICE_NAME)', model_path='$(MODEL_PATH)'))"
+	python3 -c "import asyncio, server; asyncio.run(server.deploy_vllm(service_name='$(SERVICE_NAME)', model_path='$(MODEL_PATH)', instance_type='inf2.8xlarge', market_type='spot'))"
 
 status:
 	@echo "🔍 Checking status of AWS EC2 instances for service $(SERVICE_NAME)..."

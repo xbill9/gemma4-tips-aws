@@ -4,6 +4,8 @@ This context guide summarizes the configuration, optimal serving parameters, and
 
 ---
 
+to authenticate to aws run the save-aws-creds.sh
+
 ## ⚙️ Active Environment Configuration
 
 This agent targets AWS deployments utilizing:

@@ -404,14 +404,14 @@ def get_vllm_deployment_config(
 def _get_inferentia_user_data(model_path: str, hf_token_expr: str) -> str:
     return f"""#!/bin/bash
 # 1. Resize root partition and filesystem to utilize full volume size
-ROOT_PART=$(findmnt -n -o SOURCE /)
-if [[ "$ROOT_PART" =~ ^(/dev/nvme[0-9]n[0-9])p([0-9]+)$ ]]; then
-    sudo growpart "${{BASH_REMATCH[1]}}" "${{BASH_REMATCH[2]}}" || true
-    sudo resize2fs "$ROOT_PART" || true
-elif [[ "$ROOT_PART" =~ ^(/dev/sd[a-z]|/dev/xvd[a-z])([0-9]+)$ ]]; then
-    sudo growpart "${{BASH_REMATCH[1]}}" "${{BASH_REMATCH[2]}}" || true
-    sudo resize2fs "$ROOT_PART" || true
-fi
+echo "Starting root partition resize..."
+sudo growpart /dev/nvme0n1 1 || true
+sudo growpart /dev/xvda 1 || true
+sudo growpart /dev/sda 1 || true
+sudo resize2fs /dev/nvme0n1p1 || true
+sudo resize2fs /dev/xvda1 || true
+sudo resize2fs /dev/sda1 || true
+df -h
 
 if ! command -v docker &> /dev/null; then
     apt-get update -y
@@ -419,6 +419,24 @@ if ! command -v docker &> /dev/null; then
     systemctl start docker
     systemctl enable docker
 fi
+
+# 2. Optimized Swap for 12B model on 16GB RAM (Option A)
+# Creating 48GB swap to handle 23GB weights + compilation overhead
+if [ ! -f /swapfile_large ]; then
+    echo "Creating 48GB optimized swap..."
+    fallocate -l 48G /swapfile_large
+    chmod 600 /swapfile_large
+    mkswap /swapfile_large
+    swapon /swapfile_large
+    echo "/swapfile_large swap swap defaults 0 0" >> /etc/fstab
+fi
+
+# Tune virtual memory for heavy swapping
+sysctl -w vm.swappiness=100
+sysctl -w vm.vfs_cache_pressure=50
+# Allow OOM killer to be more aggressive with non-essential tasks
+echo 1 > /proc/sys/vm/oom_kill_allocating_task
+
 
 # Detect available Neuron devices
 devices=""
@@ -435,6 +453,24 @@ if [ $device_count -eq 0 ]; then
     device_count=1
 fi
 tensor_parallel_size=$((device_count * 2))
+
+# Detect and mount secondary cache volume if present (wait up to 60s for attachment)
+echo "Waiting for secondary cache volume..."
+for i in {{1..60}}; do
+    CACHE_DEV=$(lsblk -rn -o NAME,MOUNTPOINT | grep -v "/$" | awk '$2=="" {{print "/dev/"$1}}' | head -n 1)
+    if [ -n "$CACHE_DEV" ]; then
+        echo "Detected potential cache volume: $CACHE_DEV"
+        if ! blkid "$CACHE_DEV"; then
+            echo "Formatting $CACHE_DEV..."
+            mkfs -t ext4 "$CACHE_DEV"
+        fi
+        mkdir -p /home/ubuntu/.cache
+        mount "$CACHE_DEV" /home/ubuntu/.cache
+        echo "$CACHE_DEV /home/ubuntu/.cache ext4 defaults,nofail 0 2" >> /etc/fstab
+        break
+    fi
+    sleep 1
+done
 
 # Ensure model cache directories exist and have permissions
 mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
@@ -630,7 +666,7 @@ def get_vllm_deployment_config(
     model_path: str = "google/gemma-4-12B-it",
     key_name: str = "alinux",
     gpu_memory_utilization: float = 0.95,
-    instance_type: str = "inf2.xlarge",
+    instance_type: str = "inf2.8xlarge",
 ) -> str:
     """
     Generates the AWS CLI command and UserData script to deploy vLLM to an AWS EC2 Inferentia instance.
@@ -678,7 +714,7 @@ async def deploy_vllm(
     model_path: str = "google/gemma-4-12B-it",
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
-    instance_type: str = "inf2.xlarge",
+    instance_type: str = "inf2.8xlarge",
     market_type: str = "spot",
 ) -> str:
     """
@@ -740,45 +776,6 @@ async def deploy_vllm(
         except Exception as e:
             logger.warning(f"Failed to resolve fallback VPC: {e}")
 
-    # 2. Resolve or create security group vllm-devops-sg in that VPC
-    sg_name = "vllm-devops-sg"
-    sg_id = None
-    try:
-        filters = [{"Name": "group-name", "Values": [sg_name]}]
-        if vpc_id:
-            filters.append({"Name": "vpc-id", "Values": [vpc_id]})
-        sgs = ec2.describe_security_groups(Filters=filters)
-        if sgs["SecurityGroups"]:
-            sg_id = sgs["SecurityGroups"][0]["GroupId"]
-    except Exception as e:
-        logger.info(f"Checking existing security group failed: {e}")
-
-    if not sg_id:
-        try:
-            sg_res = ec2.create_security_group(
-                GroupName=sg_name, Description="Security Group for vLLM DevOps Agent", VpcId=vpc_id
-            )
-            sg_id = sg_res["GroupId"]
-            ec2.authorize_security_group_ingress(
-                GroupId=sg_id,
-                IpPermissions=[
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 22,
-                        "ToPort": 22,
-                        "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow SSH"}],
-                    },
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 8080,
-                        "ToPort": 8080,
-                        "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow vLLM API"}],
-                    },
-                ],
-            )
-        except Exception as e:
-            return f"Failed to create/configure security group in VPC {vpc_id}: {str(e)}"
-
     # 3. Retrieve HF Token from Secret Manager/environment to inject
     hf_token = await get_secret() or ""
 
@@ -803,37 +800,128 @@ async def deploy_vllm(
     user_data = _get_inferentia_user_data(model_path, hf_token)
 
     # 5. Launch EC2 Instance
-    run_args = {
-        "ImageId": image_id,
-        "InstanceType": instance_type,
-        "MinCount": 1,
-        "MaxCount": 1,
-        "KeyName": key_name,
-        "SecurityGroupIds": [sg_id],
-        "UserData": user_data,
-        "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]}],
-        "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
-        "BlockDeviceMappings": [
-            {
-                "DeviceName": "/dev/sda1",
-                "Ebs": {
-                    "VolumeSize": 150,
-                    "VolumeType": "gp3",
-                    "DeleteOnTermination": True,
-                }
-            }
-        ],
-    }
-    if market_type == "spot":
-        run_args["InstanceMarketOptions"] = {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}}
-
     last_error = None
     for sub_id, v_id, az in candidate_subnets:
-        logger.info(f"Attempting deployment in subnet {sub_id} ({az})...")
-        run_args["SubnetId"] = sub_id
+        logger.info(f"Attempting deployment in subnet {sub_id} ({az}) VPC {v_id}...")
+
+        # 2b. Resolve or create security group vllm-devops-sg in THIS VPC
+        sg_name = "vllm-devops-sg"
+        sg_id = None
         try:
-            instance = ec2.run_instances(**run_args)
+            sgs = ec2.describe_security_groups(
+                Filters=[
+                    {"Name": "group-name", "Values": [sg_name]},
+                    {"Name": "vpc-id", "Values": [v_id]}
+                ]
+            )
+            if sgs["SecurityGroups"]:
+                sg_id = sgs["SecurityGroups"][0]["GroupId"]
+        except Exception as e:
+            logger.info(f"Checking existing security group in {v_id} failed: {e}")
+
+        if not sg_id:
+            try:
+                sg_res = ec2.create_security_group(
+                    GroupName=sg_name, Description="Security Group for vLLM DevOps Agent", VpcId=v_id
+                )
+                sg_id = sg_res["GroupId"]
+                ec2.authorize_security_group_ingress(
+                    GroupId=sg_id,
+                    IpPermissions=[
+                        {
+                            "IpProtocol": "tcp",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow SSH"}],
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "Allow vLLM API"}],
+                        },
+                    ],
+                )
+            except Exception as e:
+                logger.warning(f"Failed to create/configure security group in VPC {v_id}: {str(e)}")
+                last_error = e
+                continue
+
+        
+        # Check for existing available cache volume in this AZ
+        cache_volume_id = None
+        try:
+            v_resp = ec2.describe_volumes(
+                Filters=[
+                    {"Name": "tag:Name", "Values": [f"{service_name}-cache"]},
+                    {"Name": "availability-zone", "Values": [az]},
+                    {"Name": "status", "Values": ["available"]}
+                ]
+            )
+            if v_resp.get("Volumes"):
+                cache_volume_id = v_resp["Volumes"][0]["VolumeId"]
+                logger.info(f"Found existing cache volume {cache_volume_id} in {az}. Reusing it.")
+        except Exception as e:
+            logger.warning(f"Failed to check for existing volumes in {az}: {e}")
+
+        run_args = {
+            "ImageId": image_id,
+            "InstanceType": instance_type,
+            "MinCount": 1,
+            "MaxCount": 1,
+            "KeyName": key_name,
+            "SecurityGroupIds": [sg_id],
+            "UserData": user_data,
+            "TagSpecifications": [
+                {"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": service_name}]},
+                {"ResourceType": "volume", "Tags": [{"Key": "Name", "Value": f"{service_name}-cache"}]}
+            ],
+            "IamInstanceProfile": {"Name": "aws-elasticbeanstalk-ec2-role"},
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/sda1",
+                    "Ebs": {
+                        "VolumeSize": 150,
+                        "VolumeType": "gp3",
+                        "Iops": 16000,
+                        "Throughput": 1000,
+                        "DeleteOnTermination": True,
+                    }
+                },
+                {
+                    "DeviceName": "/dev/sdb",
+                    "Ebs": {
+                        "VolumeSize": 50,
+                        "VolumeType": "gp3",
+                        "Iops": 3000,
+                        "Throughput": 125,
+                        "DeleteOnTermination": False, # Preserve cache volume
+                    }
+                }
+            ],
+        }
+        if market_type == "spot":
+            run_args["InstanceMarketOptions"] = {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}}
+
+        current_run_args = run_args.copy()
+
+        if cache_volume_id:
+            # Only use root in run_instances; we'll attach the existing cache volume manually
+            current_run_args["BlockDeviceMappings"] = [run_args["BlockDeviceMappings"][0]]
+
+        current_run_args["SubnetId"] = sub_id
+        try:
+            instance = ec2.run_instances(**current_run_args)
             inst_id = instance["Instances"][0]["InstanceId"]
+            
+            if cache_volume_id:
+                try:
+                    logger.info(f"Attaching existing volume {cache_volume_id} to {inst_id}...")
+                    ec2.get_waiter('instance_exists').wait(InstanceIds=[inst_id])
+                    ec2.attach_volume(VolumeId=cache_volume_id, InstanceId=inst_id, Device='/dev/sdb')
+                except Exception as e:
+                    logger.error(f"Failed to attach existing volume {cache_volume_id} to {inst_id}: {e}")
+
             market_desc = "Spot" if market_type == "spot" else "On-Demand"
             return (
                 f"🚀 Successfully requested AWS EC2 {instance_type} {market_desc} Instance deployment for service '{service_name}'.\n"
@@ -841,6 +929,7 @@ async def deploy_vllm(
                 f"Key Pair: `{key_name}`\n"
                 f"Subnet ID: `{sub_id}` (AZ: {az})\n"
                 f"AMI ID: `{image_id}`\n"
+                + (f"Reusing Cache Volume: `{cache_volume_id}`\n" if cache_volume_id else "Created New Cache Volume (Persistent)\n") +
                 f"Please wait a few minutes for the instance to initialize and pull the vLLM docker image."
             )
         except Exception as e:
@@ -1140,7 +1229,7 @@ docker run -d --name vllm-server \\
                 {
                     "DeviceName": "/dev/sda1",
                     "Ebs": {
-                        "VolumeSize": 150,
+                        "VolumeSize": 250,
                         "VolumeType": "gp3",
                         "DeleteOnTermination": True,
                     }
