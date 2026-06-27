@@ -1,0 +1,250 @@
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3660, in _get_model_outputs
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     outputs = self.context_encoding_model(
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 1347, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     outputs = self._forward(*args)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 721, in _forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return self.model(*args)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] RuntimeError: The following operation failed in the TorchScript interpreter.
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] Traceback of TorchScript, serialized code (most recent call last):
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 17, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     nxd_model = self.nxd_model
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     _0 = [argument_1, argument_2, argument_3, argument_4, argument_5, argument_6, argument_7]
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     return (nxd_model).forward(_0, )
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]             ~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] class NxDModel(Module):
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   __parameters__ = []
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 107, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     _17 = torch.eq("context_encoding_model", model_name)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     if _17:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]       result1 = (context_encoding_model).forward(flattened_inputs14, torch.tensor(bucket_idx, dtype=3), )
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]       result0 = result1
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     else:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 397, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     if initialized:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]       models2 = self.models
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]       output = (models2[bucket_idx]).forward(inputs, )
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]       _102 = output
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     else:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] 
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] Traceback of TorchScript, original code (most recent call last):
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 237, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]         for name, model in self.models.items():
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]             if name == model_name:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                 result = model.forward(flattened_inputs, torch.tensor(bucket_idx, dtype=torch.int32))
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                          ~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]         result = self.packer(result)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 32, in forward
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]     
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]         if initialized:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]             output = self.models[bucket_idx].forward(inputs)
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]                      ~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]             return output
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008]         else:
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] RuntimeError: Failed to execute the model status=1006 message=Execution Out-Of-Bounds Memory Access
+(EngineCore_DP0 pid=275) ERROR 06-25 14:34:27 [core.py:1008] 
+(EngineCore_DP0 pid=275) Process EngineCore_DP0:
+(EngineCore_DP0 pid=275) Traceback (most recent call last):
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(EngineCore_DP0 pid=275)     self.run()
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/multiprocessing/process.py", line 108, in run
+(EngineCore_DP0 pid=275)     self._target(*self._args, **self._kwargs)
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1010, in run_engine_core
+(EngineCore_DP0 pid=275)     raise e
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 999, in run_engine_core
+(EngineCore_DP0 pid=275)     engine_core.run_busy_loop()
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1026, in run_busy_loop
+(EngineCore_DP0 pid=275)     self._process_engine_step()
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1060, in _process_engine_step
+(EngineCore_DP0 pid=275)     outputs, model_executed = self.step_fn()
+(EngineCore_DP0 pid=275)                               ^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 411, in step
+(EngineCore_DP0 pid=275)     model_output = future.result()
+(EngineCore_DP0 pid=275)                    ^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP0 pid=275)     return self.__get_result()
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP0 pid=275)     raise self._exception
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/uniproc_executor.py", line 79, in collective_rpc
+(EngineCore_DP0 pid=275)     result = run_method(self.driver_worker, method, args, kwargs)
+(EngineCore_DP0 pid=275)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/serial_utils.py", line 459, in run_method
+(EngineCore_DP0 pid=275)     return func(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/worker/worker_base.py", line 361, in execute_model
+(EngineCore_DP0 pid=275)     return self.worker.execute_model(scheduler_output)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/vllm/vllm_neuron/worker/neuron_worker.py", line 136, in execute_model
+(EngineCore_DP0 pid=275)     output = self.model_runner.execute_model(scheduler_output)
+(EngineCore_DP0 pid=275)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+(EngineCore_DP0 pid=275)     return func(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 759, in execute_model
+(EngineCore_DP0 pid=275)     hidden_states = self._execute_model_for_text(
+(EngineCore_DP0 pid=275)                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 1074, in _execute_model_for_text
+(EngineCore_DP0 pid=275)     hidden_states = self.model(
+(EngineCore_DP0 pid=275)                     ^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275)     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275)     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 523, in forward
+(EngineCore_DP0 pid=275)     output = self.model(
+(EngineCore_DP0 pid=275)              ^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275)     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275)     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3428, in forward
+(EngineCore_DP0 pid=275)     outputs, is_run_on_neuron = self._get_model_outputs(
+(EngineCore_DP0 pid=275)                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3660, in _get_model_outputs
+(EngineCore_DP0 pid=275)     outputs = self.context_encoding_model(
+(EngineCore_DP0 pid=275)               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275)     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275)     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=275)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 1347, in forward
+(EngineCore_DP0 pid=275)     outputs = self._forward(*args)
+(EngineCore_DP0 pid=275)               ^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 721, in _forward
+(EngineCore_DP0 pid=275)     return self.model(*args)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=275)     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=275)     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=275)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=275) RuntimeError: The following operation failed in the TorchScript interpreter.
+(EngineCore_DP0 pid=275) Traceback of TorchScript, serialized code (most recent call last):
+(EngineCore_DP0 pid=275)   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 17, in forward
+(EngineCore_DP0 pid=275)     nxd_model = self.nxd_model
+(EngineCore_DP0 pid=275)     _0 = [argument_1, argument_2, argument_3, argument_4, argument_5, argument_6, argument_7]
+(EngineCore_DP0 pid=275)     return (nxd_model).forward(_0, )
+(EngineCore_DP0 pid=275)             ~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275) class NxDModel(Module):
+(EngineCore_DP0 pid=275)   __parameters__ = []
+(EngineCore_DP0 pid=275)   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 107, in forward
+(EngineCore_DP0 pid=275)     _17 = torch.eq("context_encoding_model", model_name)
+(EngineCore_DP0 pid=275)     if _17:
+(EngineCore_DP0 pid=275)       result1 = (context_encoding_model).forward(flattened_inputs14, torch.tensor(bucket_idx, dtype=3), )
+(EngineCore_DP0 pid=275)                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275)       result0 = result1
+(EngineCore_DP0 pid=275)     else:
+(EngineCore_DP0 pid=275)   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 397, in forward
+(EngineCore_DP0 pid=275)     if initialized:
+(EngineCore_DP0 pid=275)       models2 = self.models
+(EngineCore_DP0 pid=275)       output = (models2[bucket_idx]).forward(inputs, )
+(EngineCore_DP0 pid=275)                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275)       _102 = output
+(EngineCore_DP0 pid=275)     else:
+(EngineCore_DP0 pid=275) 
+(EngineCore_DP0 pid=275) Traceback of TorchScript, original code (most recent call last):
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 237, in forward
+(EngineCore_DP0 pid=275)         for name, model in self.models.items():
+(EngineCore_DP0 pid=275)             if name == model_name:
+(EngineCore_DP0 pid=275)                 result = model.forward(flattened_inputs, torch.tensor(bucket_idx, dtype=torch.int32))
+(EngineCore_DP0 pid=275)                          ~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275)     
+(EngineCore_DP0 pid=275)         result = self.packer(result)
+(EngineCore_DP0 pid=275)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 32, in forward
+(EngineCore_DP0 pid=275)     
+(EngineCore_DP0 pid=275)         if initialized:
+(EngineCore_DP0 pid=275)             output = self.models[bucket_idx].forward(inputs)
+(EngineCore_DP0 pid=275)                      ~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=275)             return output
+(EngineCore_DP0 pid=275)         else:
+(EngineCore_DP0 pid=275) RuntimeError: Failed to execute the model status=1006 message=Execution Out-Of-Bounds Memory Access
+(EngineCore_DP0 pid=275) 
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710] AsyncLLM output_handler failed.
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710] Traceback (most recent call last):
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/async_llm.py", line 666, in output_handler
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710]     outputs = await engine_core.get_output_async()
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 910, in get_output_async
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710]     raise self._format_exception(outputs) from None
+(APIServer pid=41) ERROR 06-25 14:34:27 [async_llm.py:710] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(APIServer pid=41) INFO:     172.17.0.1:42160 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+(APIServer pid=41) INFO:     Shutting down
+(APIServer pid=41) INFO:     Waiting for application shutdown.
+(APIServer pid=41) INFO:     Application shutdown complete.
+(APIServer pid=41) INFO:     Finished server process [41]
+Preserving pre-installed transformers 4.57.6...
+Running comprehensive python patcher...
+Patch already applied to /opt/vllm/vllm_neuron/worker/neuron_worker.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py
+Target not found in /opt/conda/lib/python3.12/site-packages/vllm/utils/torch_utils.py
+Detected Transformers version: 4.57.6
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/modeling_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/modeling_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/transformers_utils/config.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/transformers_utils/config.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/model_executor/models/registry.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/tokenization_utils_base.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-pack--output truncated--
+--- STDERR ---
