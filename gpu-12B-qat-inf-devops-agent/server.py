@@ -25,13 +25,27 @@ logger.info("Initializing DevOps Agent MCP Server...")
 mcp = FastMCP("Self-Hosted vLLM DevOps Agent")
 
 # Load AWS credentials if .aws_creds exists
-aws_creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aws_creds")
-if os.path.exists(aws_creds_path):
-    with open(aws_creds_path, "r") as f:
-        for line in f:
-            if "=" in line:
-                key, val = line.strip().split("=", 1)
-                os.environ[key] = val
+def load_aws_credentials():
+    aws_creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aws_creds")
+    if os.path.exists(aws_creds_path):
+        with open(aws_creds_path, "r") as f:
+            for line in f:
+                if "=" in line:
+                    key, val = line.strip().split("=", 1)
+                    os.environ[key] = val
+
+load_aws_credentials()
+
+# Patch boto3 to reload credentials dynamically on every client instantiation
+import boto3
+_original_boto3_client = boto3.client
+def patched_boto3_client(*args, **kwargs):
+    load_aws_credentials()
+    import boto3
+    boto3.DEFAULT_SESSION = None
+    return _original_boto3_client(*args, **kwargs)
+boto3.client = patched_boto3_client
+
 
 # Configuration
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-1"))
@@ -223,12 +237,7 @@ def get_vllm_endpoint(service_name: str = DEFAULT_SERVICE_NAME) -> Optional[str]
     return discover_vllm_url(service_name)
 
 
-@mcp.tool()
-def list_vertex_models() -> str:
-    """
-    (Deprecated) GCP Vertex AI models list is no longer supported as we are using AWS Inferentia.
-    """
-    return "GCP Vertex AI is not configured. The agent is configured for AWS Inferentia."
+
 
 
 @mcp.tool()
@@ -380,29 +389,9 @@ async def query_vllm(prompt: str, max_tokens: int = 512, temperature: float = 0.
         return f"Error querying vLLM: {str(e)}"
 
 
-@mcp.tool()
-def get_vllm_deployment_config(
-    service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-12B-it",
-    key_name: str = "alinux",
-    gpu_memory_utilization: float = 0.95,
-    instance_type: str = "inf2.xlarge",
-) -> str:
-    """
-    Generates the AWS CLI command and UserData script to deploy vLLM to an AWS EC2 Inferentia instance.
-
-    Args:
-        service_name: The Name tag for the EC2 instance.
-        model_path: Hugging Face repo ID or S3 URI of the model.
-        key_name: Key Pair name for SSH access (default: 'alinux').
-        gpu_memory_utilization: The fraction of GPU VRAM to use for KV cache (GPU only, ignored for Inferentia).
-        instance_type: The EC2 instance type (default: 'inf2.xlarge').
-    """
-    if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        model_path = "google/gemma-4-12B-it"
 
 def _get_inferentia_user_data(model_path: str, hf_token_expr: str) -> str:
-    return f"""#!/bin/bash
+    user_data = f"""#!/bin/bash
 # 1. Resize root partition and filesystem to utilize full volume size
 echo "Starting root partition resize..."
 sudo growpart /dev/nvme0n1 1 || true
@@ -420,8 +409,7 @@ if ! command -v docker &> /dev/null; then
     systemctl enable docker
 fi
 
-# 2. Optimized Swap for 12B model on 16GB RAM (Option A)
-# Creating 48GB swap to handle 23GB weights + compilation overhead
+# 2. Optimized Swap for 12B model on 16GB RAM
 if [ ! -f /swapfile_large ]; then
     echo "Creating 48GB optimized swap..."
     fallocate -l 48G /swapfile_large
@@ -434,9 +422,7 @@ fi
 # Tune virtual memory for heavy swapping
 sysctl -w vm.swappiness=100
 sysctl -w vm.vfs_cache_pressure=50
-# Allow OOM killer to be more aggressive with non-essential tasks
 echo 1 > /proc/sys/vm/oom_kill_allocating_task
-
 
 # Detect available Neuron devices
 devices=""
@@ -454,7 +440,7 @@ if [ $device_count -eq 0 ]; then
 fi
 tensor_parallel_size=$((device_count * 2))
 
-# Detect and mount secondary cache volume if present (wait up to 60s for attachment)
+# Detect and mount secondary cache volume if present
 echo "Waiting for secondary cache volume..."
 for i in {{1..60}}; do
     CACHE_DEV=$(lsblk -rn -o NAME,MOUNTPOINT | grep -v "/$" | awk '$2=="" {{print "/dev/"$1}}' | head -n 1)
@@ -479,111 +465,275 @@ chmod -R 777 /home/ubuntu/.cache
 # Write patch script to host
 cat << 'EOF' > /home/ubuntu/patch_transformers.py
 import os
+import torch
 
-# 1. Patch transformers/utils/fx.py
+def patch_file(filepath, target, replacement):
+    if not os.path.exists(filepath):
+        print(f"File not found: {{filepath}}")
+        return False
+    with open(filepath, 'r') as f:
+        content = f.read()
+    if replacement in content:
+        print(f"Patch already applied to {{filepath}}")
+        return True
+    if target in content:
+        content = content.replace(target, replacement)
+        with open(filepath, 'w') as f:
+            f.write(content)
+        print(f"Successfully patched {{filepath}}")
+        return True
+    else:
+        print(f"Target not found in {{filepath}}")
+        return False
+
+# 1. Patch fx.py
 fx_path = "/opt/conda/lib/python3.12/site-packages/transformers/utils/fx.py"
 os.makedirs(os.path.dirname(fx_path), exist_ok=True)
 with open(fx_path, "w") as f:
     f.write('''import torch.fx
-
-class HFTracer(torch.fx.Tracer):
-    pass
-
-def symbolic_trace(model, *args, **kwargs):
-    return torch.fx.symbolic_trace(model)
+class HFTracer(torch.fx.Tracer): pass
+def symbolic_trace(model, *args, **kwargs): return torch.fx.symbolic_trace(model)
 ''')
-print("Patched fx.py")
 
-# 2. Patch transformers/generation/utils.py
+# 2. Patch generation/utils.py
 gen_utils_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/utils.py"
-with open(gen_utils_path, "r") as f:
-    content = f.read()
+if os.path.exists(gen_utils_path):
+    with open(gen_utils_path, "r") as f:
+        content = f.read()
+    if "SampleDecoderOnlyOutput" not in content:
+        with open(gen_utils_path, "a") as f:
+            f.write("\\n\\nSampleDecoderOnlyOutput = GenerateDecoderOnlyOutput\\nSampleEncoderDecoderOutput = GenerateEncoderDecoderOutput\\n")
 
-if "SampleDecoderOnlyOutput" not in content:
-    with open(gen_utils_path, "a") as f:
-        f.write("\\n\\nSampleDecoderOnlyOutput = GenerateDecoderOnlyOutput\\nSampleEncoderDecoderOutput = GenerateEncoderDecoderOutput\\n")
-    print("Patched generation/utils.py")
-else:
-    print("generation/utils.py already patched")
-
-# 3. Patch transformers/generation/__init__.py
+# 3. Patch generation/__init__.py
 gen_init_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/__init__.py"
-with open(gen_init_path, "r") as f:
-    content = f.read()
-
-if "if TYPE_CHECKING:" in content:
-    content = content.replace(
-        "if TYPE_CHECKING:",
-        '_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n\\nif TYPE_CHECKING:'
-    )
-    print("Injected into _import_structure")
-else:
-    content += '\\n_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n'
-
-with open(gen_init_path, "w") as f:
-    f.write(content)
-print("Patched generation/__init__.py")
-
-# 4. Patch vllm_neuron constants to include Gemma4UnifiedForConditionalGeneration
-constants_path = "/opt/vllm/vllm_neuron/worker/constants.py"
-if os.path.exists(constants_path):
-    with open(constants_path, "r") as f:
+if os.path.exists(gen_init_path):
+    with open(gen_init_path, "r") as f:
         content = f.read()
-    if "Gemma4UnifiedForConditionalGeneration" not in content:
-        content = content.replace(
-            "NEURON_MULTI_MODAL_MODELS = [",
-            "NEURON_MULTI_MODAL_MODELS = [\\n    'Gemma4UnifiedForConditionalGeneration',"
-        )
-        with open(constants_path, "w") as f:
+    if "if TYPE_CHECKING:" in content and "SampleDecoderOnlyOutput" not in content:
+        content = content.replace("if TYPE_CHECKING:", '_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n\\nif TYPE_CHECKING:')
+        with open(gen_init_path, "w") as f:
             f.write(content)
-        print("Patched NEURON_MULTI_MODAL_MODELS in constants.py")
 
-# 5. Patch neuronx_distributed_inference constants to register gemma4unified
+# 4. Patch registry.py for text-only causal-LM
+vllm_registry_file = '/opt/conda/lib/python3.12/site-packages/vllm/model_executor/models/registry.py'
+patch_file(
+    vllm_registry_file,
+    '    "Gemma3ForConditionalGeneration": ("gemma3_mm", "Gemma3ForConditionalGeneration"),  # noqa: E501',
+    '    "Gemma3ForConditionalGeneration": ("gemma3_mm", "Gemma3ForConditionalGeneration"),  # noqa: E501\\n    "Gemma4ForConditionalGeneration": ("gemma3", "Gemma3ForCausalLM"),\\n    "Gemma4ForCausalLM": ("gemma3", "Gemma3ForCausalLM"),\\n    "Gemma4UnifiedForConditionalGeneration": ("gemma3", "Gemma3ForCausalLM"),'
+)
+
+# 5. Patch modeling_auto.py for text-only causal-LM
+modeling_auto_file = '/opt/conda/lib/python3.12/site-packages/transformers/models/auto/modeling_auto.py'
+patch_file(
+    modeling_auto_file,
+    '        ("gemma3", "Gemma3ForConditionalGeneration"),\\n        ("gemma3_text", "Gemma3ForCausalLM"),',
+    '        ("gemma3", "Gemma3ForConditionalGeneration"),\\n        ("gemma3_text", "Gemma3ForCausalLM"),\\n        ("gemma4", "Gemma3ForCausalLM"),\\n        ("gemma4_text", "Gemma3ForCausalLM"),\\n        ("gemma4_unified", "Gemma3ForCausalLM"),\\n        ("gemma4_unified_text", "Gemma3ForCausalLM"),'
+)
+patch_file(
+    modeling_auto_file,
+    '        ("gemma3", "Gemma3Model"),\\n        ("gemma3_text", "Gemma3TextModel"),',
+    '        ("gemma3", "Gemma3Model"),\\n        ("gemma3_text", "Gemma3TextModel"),\\n        ("gemma4", "Gemma3TextModel"),\\n        ("gemma4_text", "Gemma3TextModel"),\\n        ("gemma4_unified", "Gemma3TextModel"),\\n        ("gemma4_unified_text", "Gemma3TextModel"),'
+)
+
+# 6. Patch configuration_auto.py
+config_auto_file = '/opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py'
+patch_file(
+    config_auto_file,
+    '("aimv2", "AIMv2"),',
+    '("aimv2", "AIMv2"),\\n        ("gemma4", "Gemma 4"),\\n        ("gemma4_text", "Gemma 4 Text"),\\n        ("gemma4_unified", "Gemma 4 Unified"),\\n        ("gemma4_unified_text", "Gemma 4 Unified Text"),\\n        ("gemma4_unified_vision", "Gemma 4 Unified Vision"),\\n        ("gemma4_unified_audio", "Gemma 4 Unified Audio"),'
+)
+patch_file(
+    config_auto_file,
+    '("gemma3", "Gemma3Config"),',
+    '("gemma3", "Gemma3Config"),\\n        ("gemma4", "Gemma3Config"),\\n        ("gemma4_text", "Gemma3TextConfig"),\\n        ("gemma4_unified", "Gemma3Config"),\\n        ("gemma4_unified_text", "Gemma3TextConfig"),'
+)
+patch_file(
+    config_auto_file,
+    '("gemma3_text", "gemma3"),',
+    '("gemma3_text", "gemma3"),\\n        ("gemma4", "gemma3"),\\n        ("gemma4_text", "gemma3"),\\n        ("gemma4_unified", "gemma3"),\\n        ("gemma4_unified_text", "gemma3"),'
+)
+
+# 7. Patch constants.py in NxD
 constants_py_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py"
-if os.path.exists(constants_py_path):
-    with open(constants_py_path, "r") as f:
-        content = f.read()
-    if "gemma4unified" not in content:
-        with open(constants_py_path, "a") as f:
-            f.write("\\n\\nMODEL_TYPES['gemma4unified'] = MODEL_TYPES['gemma3']\\n")
-        print("Patched neuronx_distributed_inference constants.py")
+patch_file(
+    constants_py_path,
+    '    "gemma3": {{"causal-lm": NeuronGemma3ForCausalLM}},',
+    '    "gemma3": {{"causal-lm": NeuronGemma3ForCausalLM}},\\n    "gemma4": {{"causal-lm": NeuronGemma3ForCausalLM}},\\n    "gemma4unified": {{"causal-lm": NeuronGemma3ForCausalLM}},\\n    "gemma4_unified": {{"causal-lm": NeuronGemma3ForCausalLM}},'
+)
 
-# 6. Patch gemma3 modeling to handle missing query_pre_attn_scalar (defaults to head_dim)
+# 8. Patch modeling_gemma3.py
 gemma3_modeling_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py"
-if os.path.exists(gemma3_modeling_path):
-    with open(gemma3_modeling_path, "r") as f:
-        content = f.read()
-    
-    old_target = "setattr(self, attribute, getattr(text_config, attribute))"
-    new_target = "setattr(self, attribute, getattr(text_config, attribute, None))"
-    if old_target in content:
-        content = content.replace(old_target, new_target)
-        
-    old_derived = "self.add_derived_config()"
-    new_derived = "if getattr(self, 'query_pre_attn_scalar', None) is None:\\n            self.query_pre_attn_scalar = self.head_dim\\n        self.add_derived_config()"
-    if old_derived in content and "query_pre_attn_scalar = self.head_dim" not in content:
-        content = content.replace(old_derived, new_derived)
-        
-    with open(gemma3_modeling_path, "w") as f:
-        f.write(content)
-    print("Patched modeling_gemma3.py query_pre_attn_scalar fallback")
+patch_file(
+    gemma3_modeling_path,
+    'setattr(self, attribute, getattr(text_config, attribute))',
+    'setattr(self, attribute, getattr(text_config, attribute, None))'
+)
+patch_file(
+    gemma3_modeling_path,
+    'self.add_derived_config()',
+    'if getattr(self, "query_pre_attn_scalar", None) is None:\\n            self.query_pre_attn_scalar = self.head_dim\\n        self.add_derived_config()'
+)
+patch_file(
+    gemma3_modeling_path,
+    'if "model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model."): v for k, v in state_dict.items()}}',
+    'if "model.language_model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model.language_model."): v for k, v in state_dict.items()}}\\n        elif "model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model."): v for k, v in state_dict.items()}}'
+)
 
-# 7. Patch attention_base.py to disable flash attention if head_dim > 128
+# 9. Patch state dict convert for key/value weights
+fused_target = \'\'\'            if config.neuron_config.fused_qkv:
+                attr = "weight"  # Will have to set this to "scale" if we pursue quantized weights
+
+                state_dict[f"layers.{{i}}.self_attn.Wqkv.{{attr}}"] = torch.cat(
+                    [
+                        state_dict[f"layers.{{i}}.self_attn.q_proj.{{attr}}"],
+                        state_dict[f"layers.{{i}}.self_attn.k_proj.{{attr}}"],
+                        state_dict[f"layers.{{i}}.self_attn.v_proj.{{attr}}"],
+                    ],
+                )
+                del state_dict[f"layers.{{i}}.self_attn.q_proj.{{attr}}"]
+                del state_dict[f"layers.{{i}}.self_attn.k_proj.{{attr}}"]
+                del state_dict[f"layers.{{i}}.self_attn.v_proj.{{attr}}"]\'\'\'
+
+fused_repl = \'\'\'            if f"layers.{{i}}.self_attn.k_proj.weight" in state_dict and f"layers.{{i}}.self_attn.v_proj.weight" not in state_dict:
+                state_dict[f"layers.{{i}}.self_attn.v_proj.weight"] = state_dict[f"layers.{{i}}.self_attn.k_proj.weight"].clone()
+            
+            swa_layer = (i + 1) % 6 != 0
+            is_fused_layer = config.neuron_config.fused_qkv and swa_layer
+
+            if not swa_layer:
+                for proj in ["k_proj", "v_proj"]:
+                    key = f"layers.{{i}}.self_attn.{{proj}}.weight"
+                    if key in state_dict:
+                        weight = state_dict[key]
+                        if weight.shape[0] < 4096:
+                            import torch
+                            padded_weight = torch.zeros((4096, weight.shape[1]), dtype=weight.dtype, device=weight.device)
+                            padded_weight[:weight.shape[0], :] = weight
+                            state_dict[key] = padded_weight
+
+            if is_fused_layer:
+                attr = "weight"
+                import torch
+                state_dict[f"layers.{{i}}.self_attn.Wqkv.{{attr}}"] = torch.cat(
+                    [
+                        state_dict[f"layers.{{i}}.self_attn.q_proj.{{attr}}"],
+                        state_dict[f"layers.{{i}}.self_attn.k_proj.{{attr}}"],
+                        state_dict[f"layers.{{i}}.self_attn.v_proj.{{attr}}"],
+                    ],
+                )
+                del state_dict[f"layers.{{i}}.self_attn.q_proj.{{attr}}"]
+                del state_dict[f"layers.{{i}}.self_attn.k_proj.{{attr}}"]
+                del state_dict[f"layers.{{i}}.self_attn.v_proj.{{attr}}"]
+            else:
+                for proj in ["q_proj", "k_proj", "v_proj"]:
+                    if f"layers.{{i}}.self_attn.{{proj}}.weight" in state_dict:
+                        weight = state_dict.pop(f"layers.{{i}}.self_attn.{{proj}}.weight")
+                        setattr(weight, "tensor_model_parallel", True)
+                        setattr(weight, "partition_dim", 0)
+                        setattr(weight, "partition_stride", 1)
+                        setattr(weight, "num_partitions", config.neuron_config.tp_degree)
+                        state_dict[f"layers.{{i}}.self_attn.qkv_proj.{{proj}}.weight"] = weight\'\'\'
+patch_file(gemma3_modeling_path, fused_target, fused_repl)
+
+# 10. Patch attention constructors
+attn_init_target = \'\'\'class NeuronGemma3Attention(NeuronAttentionBase):
+    def __init__(self, config: Gemma3InferenceConfig):
+        head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)\'\'\'
+attn_init_repl = \'\'\'class NeuronGemma3Attention(NeuronAttentionBase):
+    def __init__(self, config: Gemma3InferenceConfig, layer_idx: int = None):
+        head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
+        if layer_idx is not None and (layer_idx + 1) % 6 == 0:
+            head_dim = getattr(config, "global_head_dim", 512)\'\'\'
+patch_file(gemma3_modeling_path, attn_init_target, attn_init_repl)
+
+decoder_attn_target = \'\'\'        self.self_attn = NeuronGemma3Attention(config)\'\'\'
+decoder_attn_repl = \'\'\'        self.self_attn = NeuronGemma3Attention(config, layer_idx=layer_idx)\'\'\'
+patch_file(gemma3_modeling_path, decoder_attn_target, decoder_attn_repl)
+
+# 11. Patch rotary emb selection
+rotary_target = \'\'\'        rotary_emb = local_rotary_emb
+        if config.sliding_window is None:
+            rotary_emb = global_rotary_emb\'\'\'
+rotary_repl = \'\'\'        rotary_emb = local_rotary_emb
+        if config.sliding_window is None or (layer_idx is not None and (layer_idx + 1) % 6 == 0):
+            rotary_emb = global_rotary_emb\'\'\'
+patch_file(gemma3_modeling_path, rotary_target, rotary_repl)
+
+# 12. Patch attention_base.py to disable flash attention
 attention_base_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py"
-if os.path.exists(attention_base_path):
-    with open(attention_base_path, "r") as f:
+patch_file(attention_base_path, 'if self.attn_kernel_enabled is False:', 'if self.attn_kernel_enabled is False or self.head_dim > 128:')
+
+# 13. Patch kvcache/utils.py
+kvcache_utils_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py"
+patch_file(
+    kvcache_utils_path,
+    'def dynamic_update_slice(\\n    tensor: torch.Tensor, update: torch.Tensor, start_indices: List[torch.Tensor]\\n):',
+    'def dynamic_update_slice(\\n    tensor: torch.Tensor, update: torch.Tensor, start_indices: List[torch.Tensor]\\n):\\n    if update.shape[-1] < tensor.shape[-1]:\\n        update = torch.nn.functional.pad(update, (0, tensor.shape[-1] - update.shape[-1]))'
+)
+patch_file(
+    kvcache_utils_path,
+    '    batch_indices = sequence_ids.view(-1, 1, 1).expand(-1, kv_heads, bucket_length).to(torch.int32)',
+    '    if updates.shape[-1] < d_head:\\n        updates = torch.nn.functional.pad(updates, (0, d_head - updates.shape[-1]))\\n    batch_indices = sequence_ids.view(-1, 1, 1).expand(-1, kv_heads, bucket_length).to(torch.int32)'
+)
+patch_file(
+    kvcache_utils_path,
+    '    pos_indices = torch.arange(bucket_length).view(1, 1, -1).expand(batch_size, kv_heads, -1).to(torch.int32)',
+    '    pos_indices = torch.arange(bucket_length).view(1, 1, -1).expand(batch_size, kv_heads, -1)\\n    if bucket_length > max_sequence_length:\\n        pos_indices = pos_indices % max_sequence_length\\n    pos_indices = pos_indices.to(torch.int32)'
+)
+
+# 14. Patch kv_cache_manager.py for slicing retrieval on sliding-window layers
+kv_cache_mgr_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py"
+if os.path.exists(kv_cache_mgr_path):
+    with open(kv_cache_mgr_path, "r") as f:
         content = f.read()
-    
-    old_code = "if self.attn_kernel_enabled is False:"
-    new_code = "if self.attn_kernel_enabled is False or self.head_dim > 128:"
-    if old_code in content and new_code not in content:
-        content = content.replace(old_code, new_code)
-        with open(attention_base_path, "w") as f:
+    target_fetch = "        if self.is_kv_cache_tiled:\\n            k_cache = untile_cache(cache=k_cache, transposed=self.k_cache_transposed)\\n            v_cache = untile_cache(cache=v_cache, transposed=False)\\n\\n        return k_cache, v_cache"
+    replacement_fetch = "        if self.is_kv_cache_tiled:\\n            k_cache = untile_cache(cache=k_cache, transposed=self.k_cache_transposed)\\n            v_cache = untile_cache(cache=v_cache, transposed=False)\\n\\n        if (idx + 1) % 6 != 0:\\n            if k_cache.shape[-1] == 512:\\n                k_cache = k_cache[..., :256]\\n            if v_cache.shape[-1] == 512:\\n                v_cache = v_cache[..., :256]\\n        return k_cache, v_cache"
+    if target_fetch in content and "k_cache.shape[-1] == 512" not in content:
+        content = content.replace(target_fetch, replacement_fetch)
+        with open(kv_cache_mgr_path, "w") as f:
             f.write(content)
-        print("Patched attention_base.py to disable flash attention for head_dim > 128")
+
+# 14b. Patch kv_cache_manager.py and gpt_oss_kv_cache_manager.py update_kv_by_layer_id to slice sequence inputs to SWA window size
+gpt_cache_mgr_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py"
+if os.path.exists(kv_cache_mgr_path):
+    with open(kv_cache_mgr_path, "r") as f:
+        content = f.read()
+    target_update = "        latest_k, latest_v = kv_per_layer[0], kv_per_layer[1]\\n        if latest_k.shape[-1] < 512:\\n            latest_k = torch.nn.functional.pad(latest_k, (0, 512 - latest_k.shape[-1]))\\n        if latest_v.shape[-1] < 512:\\n            latest_v = torch.nn.functional.pad(latest_v, (0, 512 - latest_v.shape[-1]))"
+    replacement_update = "        latest_k, latest_v = kv_per_layer[0], kv_per_layer[1]\\n        if latest_k.shape[-1] < 512:\\n            latest_k = torch.nn.functional.pad(latest_k, (0, 512 - latest_k.shape[-1]))\\n        if latest_v.shape[-1] < 512:\\n            latest_v = torch.nn.functional.pad(latest_v, (0, 512 - latest_v.shape[-1]))\\n        is_swa_layer = (idx + 1) % 6 != 0\\n        if is_swa_layer and self.sliding_window:\\n            seq_len_dim = 2 if not self.k_cache_transposed else 3\\n            current_seq_len = latest_k.shape[seq_len_dim]\\n            if current_seq_len > self.sliding_window:\\n                if not self.k_cache_transposed:\\n                    latest_k = latest_k[:, :, -self.sliding_window:, :]\\n                else:\\n                    latest_k = latest_k[:, :, :, -self.sliding_window:]\\n                latest_v = latest_v[:, :, -self.sliding_window:, :]\\n                position_ids = position_ids[:, -self.sliding_window:]\\n                if scatter_index is not None:\\n                    scatter_index = scatter_index[:, -self.sliding_window:]"
+    if target_update in content and "is_swa_layer = (idx + 1) % 6 != 0" not in content:
+        content = content.replace(target_update, replacement_update)
+        with open(kv_cache_mgr_path, "w") as f:
+            f.write(content)
+
+if os.path.exists(gpt_cache_mgr_path):
+    with open(gpt_cache_mgr_path, "r") as f:
+        content = f.read()
+    target_update = "        latest_k, latest_v = kv_per_layer[0], kv_per_layer[1]"
+    replacement_update = "        latest_k, latest_v = kv_per_layer[0], kv_per_layer[1]\\n        if latest_k.shape[-1] < 512:\\n            latest_k = torch.nn.functional.pad(latest_k, (0, 512 - latest_k.shape[-1]))\\n        if latest_v.shape[-1] < 512:\\n            latest_v = torch.nn.functional.pad(latest_v, (0, 512 - latest_v.shape[-1]))\\n        if is_swa_layer and self.sliding_window:\\n            seq_len_dim = 2 if not is_k_cache_transposed else 3\\n            current_seq_len = latest_k.shape[seq_len_dim]\\n            if current_seq_len > self.sliding_window:\\n                if not is_k_cache_transposed:\\n                    latest_k = latest_k[:, :, -self.sliding_window:, :]\\n                else:\\n                    latest_k = latest_k[:, :, :, -self.sliding_window:]\\n                latest_v = latest_v[:, :, -self.sliding_window:, :]\\n                position_ids = position_ids[:, -self.sliding_window:]\\n                if scatter_index is not None:\\n                    scatter_index = scatter_index[:, -self.sliding_window:]"
+    if target_update in content and "is_swa_layer and self.sliding_window" not in content:
+        content = content.replace(target_update, replacement_update)
+        with open(gpt_cache_mgr_path, "w") as f:
+            f.write(content)
+
+# 15. Patch model loader config fallback
+loader_path = '/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py'
+patch_file(
+    loader_path,
+    '    if architecture in NEURON_MULTI_MODAL_MODELS:\\n        config = getattr(config, "text_config", None)',
+    '    if architecture in NEURON_MULTI_MODAL_MODELS or hasattr(config, "text_config"):\\n        config = getattr(config, "text_config", None) or config'
+)
+
+# 16. Patch torch_utils.py manual_seed_all check
+torch_utils_file = '/opt/conda/lib/python3.12/site-packages/vllm/utils/torch_utils.py'
+patch_file(
+    torch_utils_file,
+    '        from vllm.platforms import current_platform\\n\\n        current_platform.manual_seed_all(seed)',
+    '        from vllm.platforms import current_platform\\n        try:\\n            current_platform.manual_seed_all(seed)\\n        except NotImplementedError:\\n            pass'
+)
+
 EOF
 
-# Write startup script to host
+# Write startup and patching script to host
 cat << 'EOF' > /home/ubuntu/patch_and_run.sh
 #!/bin/bash
 set -e
@@ -591,7 +741,7 @@ echo "Upgrading transformers..."
 pip install --upgrade transformers
 
 echo "Running python patcher for transformers..."
-python3 /patch_transformers.py
+python3 /home/ubuntu/patch_transformers.py
 
 echo "Registering neuron_quant quantization method in vLLM..."
 cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
@@ -613,7 +763,7 @@ class NeuronQuantConfig(QuantizationConfig):
         return 0
 
     @staticmethod
-    def get_config_filenames() -> list[str]:
+    def get_config_filenames(cls) -> list[str]:
         return []
 
     @classmethod
@@ -628,13 +778,15 @@ echo "Starting vLLM Server with memory optimizations..."
 python3 -m vllm.entrypoints.openai.api_server \\
   --model {model_path} \\
   --quantization neuron_quant \\
-  --max-model-len 4096 \\
-  --tensor-parallel-size 2 \\
-  --max-num-seqs 4 \\
+  --max-model-len 1024 \\
+  --tensor-parallel-size $tensor_parallel_size \\
+  --max-num-seqs 2 \\
   --swap-space 0 \\
   --no-enable-prefix-caching \\
-  --enable-chunked-prefill \\
   --max-num-batched-tokens 512 \\
+  --block-size 16 \\
+  --enable-auto-tool-choice \\
+  --tool-call-parser functiongemma \\
   --async-scheduling \\
   --host 0.0.0.0 \\
   --port 8080
@@ -642,18 +794,21 @@ EOF
 chmod +x /home/ubuntu/patch_and_run.sh
 
 docker run -d --name vllm-server \\
+  --no-healthcheck \\
   $devices \\
   --ipc=host \\
-  --restart always \\
+  --restart no \\
   -p 8080:8080 \\
   -e HF_TOKEN="{hf_token_expr}" \\
-  -e NEURON_CC_FLAGS="--model-type transformer" \\
+  -e NEURON_CC_FLAGS="--model-type=gemma4 --enable-mixed-shapes=False --target=inf2 --hbm-scratchpad-page-size=1024" \\
+  -e NEURON_SCRATCHPAD_PAGE_SIZE=1024 \\
+  -e NEURON_CORES_PER_WORKER=2 \\
   -e NEURON_COMPILER_WORKERS=1 \\
   -e VLLM_ENGINE_READY_TIMEOUT_S=1800 \\
   -e VLLM_ENGINE_ITERATION_TIMEOUT_S=600 \\
   -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  -v /home/ubuntu/patch_transformers.py:/patch_transformers.py \\
+  -v /home/ubuntu/patch_transformers.py:/home/ubuntu/patch_transformers.py \\
   -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
   bash /patch_and_run.sh
@@ -881,7 +1036,7 @@ async def deploy_vllm(
                 {
                     "DeviceName": "/dev/sda1",
                     "Ebs": {
-                        "VolumeSize": 150,
+                        "VolumeSize": 300,
                         "VolumeType": "gp3",
                         "Iops": 16000,
                         "Throughput": 1000,
@@ -889,7 +1044,7 @@ async def deploy_vllm(
                     }
                 },
                 {
-                    "DeviceName": "/dev/sdb",
+                    "DeviceName": "/dev/sdf",
                     "Ebs": {
                         "VolumeSize": 50,
                         "VolumeType": "gp3",
@@ -918,7 +1073,7 @@ async def deploy_vllm(
                 try:
                     logger.info(f"Attaching existing volume {cache_volume_id} to {inst_id}...")
                     ec2.get_waiter('instance_exists').wait(InstanceIds=[inst_id])
-                    ec2.attach_volume(VolumeId=cache_volume_id, InstanceId=inst_id, Device='/dev/sdb')
+                    ec2.attach_volume(VolumeId=cache_volume_id, InstanceId=inst_id, Device='/dev/sdf')
                 except Exception as e:
                     logger.error(f"Failed to attach existing volume {cache_volume_id} to {inst_id}: {e}")
 
@@ -1100,118 +1255,7 @@ async def start_ec2(
         logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-12B-it' for Inferentia.")
         model_path = "google/gemma-4-12B-it"
 
-    user_data = f"""#!/bin/bash
-if ! command -v docker &> /dev/null; then
-    apt-get update -y
-    apt-get install -y docker.io
-    systemctl start docker
-    systemctl enable docker
-fi
-
-# Detect available Neuron devices
-devices=""
-device_count=0
-for dev in /dev/neuron*; do
-    if [ -e "$dev" ]; then
-        devices="$devices --device $dev"
-        device_count=$((device_count + 1))
-    fi
-done
-
-if [ $device_count -eq 0 ]; then
-    devices="--device /dev/neuron0"
-    device_count=1
-fi
-tensor_parallel_size=$((device_count * 2))
-
-# Ensure model cache directories exist and have permissions
-mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
-chmod -R 777 /home/ubuntu/.cache
-
-# Write startup and patching script to host
-cat << 'EOF' > /home/ubuntu/patch_and_run.sh
-#!/bin/bash
-set -e
-echo "Upgrading transformers..."
-pip install --upgrade transformers
-
-echo "Patching transformers..."
-mkdir -p /opt/conda/lib/python3.12/site-packages/transformers/utils
-cat << 'INNER_EOF' > /opt/conda/lib/python3.12/site-packages/transformers/utils/fx.py
-import torch.fx
-
-class HFTracer(torch.fx.Tracer):
-    pass
-
-def symbolic_trace(model, *args, **kwargs):
-    return torch.fx.symbolic_trace(model)
-INNER_EOF
-
-cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/transformers/generation/__init__.py
-
-from transformers.generation.utils import GenerateDecoderOnlyOutput, GenerateEncoderDecoderOutput
-SampleDecoderOnlyOutput = GenerateDecoderOnlyOutput
-SampleEncoderDecoderOutput = GenerateEncoderDecoderOutput
-INNER_EOF
-
-echo "Registering neuron_quant quantization method in vLLM..."
-cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
-
-from vllm.model_executor.layers.quantization.base_config import QuantizationConfig
-from vllm.model_executor.layers.quantization import register_quantization_config
-import torch
-
-@register_quantization_config("neuron_quant")
-class NeuronQuantConfig(QuantizationConfig):
-    def get_name(self) -> str:
-        return "neuron_quant"
-
-    def get_supported_act_dtypes(self) -> list[torch.dtype]:
-        return [torch.float16, torch.bfloat16]
-
-    @classmethod
-    def get_min_capability(cls) -> int:
-        return 0
-
-    @staticmethod
-    def get_config_filenames() -> list[str]:
-        return []
-
-    @classmethod
-    def from_config(cls, config: dict) -> "NeuronQuantConfig":
-        return cls()
-
-    def get_quant_method(self, layer, prefix):
-        return None
-INNER_EOF
-
-echo "Starting vLLM Server..."
-python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size $tensor_parallel_size \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --block-size 16 \\
-  --host 0.0.0.0 \\
-  --port 8080
-EOF
-chmod +x /home/ubuntu/patch_and_run.sh
-
-docker run -d --name vllm-server \\
-  $devices \\
-  --ipc=host \\
-  --restart always \\
-  -p 8080:8080 \\
-  -e HF_TOKEN="{hf_token}" \\
-  -e NEURON_CC_FLAGS="--model-type transformer" \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  bash /patch_and_run.sh
-"""
+    user_data = _get_inferentia_user_data(model_path, hf_token)
 
     # 5. Launch EC2 Instance
     try:
@@ -1229,7 +1273,7 @@ docker run -d --name vllm-server \\
                 {
                     "DeviceName": "/dev/sda1",
                     "Ebs": {
-                        "VolumeSize": 250,
+                        "VolumeSize": 300,
                         "VolumeType": "gp3",
                         "DeleteOnTermination": True,
                     }
@@ -1689,12 +1733,7 @@ spec:
     return manifest
 
 
-@mcp.tool()
-def get_vertex_ai_model_copy_instructions(model_name: str = "gemma-4-12B-it") -> str:
-    """
-    (Deprecated) Provides instructions to transfer model from Vertex AI. No longer supported.
-    """
-    return "GCP Vertex AI is not configured. The agent is configured for AWS Inferentia."
+
 
 
 
@@ -2245,6 +2284,41 @@ async def analyze_gpu_logs(limit: int = 15, service_name: str = DEFAULT_SERVICE_
 
 
 @mcp.tool()
+async def get_raw_ec2_logs(limit: int = 100, service_name: str = DEFAULT_SERVICE_NAME) -> str:
+    """
+    Fetches raw docker container logs directly from the active EC2 instance via SSM.
+    Use this when the model is offline, failing to start, or to view raw stack traces.
+
+    Args:
+        limit: Number of log lines to retrieve (default 100).
+        service_name: Name tag of the EC2 instance.
+    """
+    try:
+        import boto3
+
+        ec2 = boto3.client("ec2", region_name=AWS_REGION)
+        response = ec2.describe_instances(
+            Filters=[
+                {"Name": "tag:Name", "Values": [service_name]},
+                {"Name": "instance-state-name", "Values": ["running"]},
+            ]
+        )
+        instances = []
+        for reservation in response.get("Reservations", []):
+            instances.extend(reservation.get("Instances", []))
+
+        if not instances:
+            return "No running EC2 instance found for this service name."
+
+        inst_id = instances[0]["InstanceId"]
+        logger.info(f"Retrieving raw EC2 logs for instance {inst_id} via SSM...")
+        raw_logs = await fetch_ec2_logs(inst_id, limit)
+        return f"### Raw vLLM Container Logs ({inst_id})\n\n```\n{raw_logs}\n```"
+    except Exception as e:
+        return f"Failed to retrieve raw EC2 logs: {str(e)}"
+
+
+@mcp.tool()
 async def get_help() -> str:
     """Provides help text and summarizes the configuration options and all available SRE/DevOps tools for this AWS MCP server."""
     return (
@@ -2277,10 +2351,8 @@ async def get_help() -> str:
         "- **`get_vllm_gpu_deployment_config`**: Generates an AWS EKS nodegroup config and Kubernetes manifest for Inferentia.\n"
         "- **`check_gpu_quotas`**: Checks Inferentia/Neuron quotas for an AWS region.\n\n"
         "#### 📊 Model Management\n"
-        "- **`list_vertex_models`**: (Deprecated) GCP Vertex AI models list.\n"
         "- **`list_bucket_models`**: Lists model weights in S3 bucket.\n"
         "- **`save_hf_token`**: Securely saves a Hugging Face API token to AWS Secrets Manager.\n"
-        "- **`get_vertex_ai_model_copy_instructions`**: (Deprecated) Instructions to copy model from Vertex AI.\n"
         "- **`get_huggingface_model_copy_instructions`**: Instructions to download model from Hugging Face and upload to S3.\n"
         "- **`get_huggingfacehub_download_path`**: Resolves local cache path using huggingface_hub.\n\n"
         "#### 📊 Monitoring & Status\n"

@@ -52,44 +52,46 @@ make run
 The following tools are available via the MCP server:
 
 ### 🐳 Infrastructure & Deployment
-*   **[deploy_vllm](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L459)**: Deploys vLLM to Cloud Run GPU (NVIDIA L4 in us-east4).
-*   **[destroy_vllm](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L524)**: Deletes the Cloud Run vLLM service.
-*   **[status_vllm](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L550)**: Checks the status of the Cloud Run vLLM service.
-*   **[update_vllm_scaling](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L576)**: Updates min/max instances for scaling.
-*   **[get_vllm_deployment_config](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L393)**: Generates the `gcloud` deployment command.
-*   **[get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L606)**: Generates a GKE manifest for GPU (NVIDIA L4).
-*   **[check_gpu_quotas](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L783)**: Checks L4 and other GPU quotas for a region.
-*   **[get_vllm_endpoint](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L237)**: Returns the current active vLLM endpoint URL.
+*   **[start_ec2](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L948)**: Starts an existing stopped EC2 instance, or provisions a new one (with AWS Inferentia) if none exists.
+*   **[status_ec2](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1010)**: Checks the state, type, public IP, DNS, and launch details of EC2 instances.
+*   **[stop_ec2](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1304)**: Safely stops active EC2 instances without deleting the root EBS volumes.
+*   **[check_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1126)**: Checks the status of the vLLM container and engine running on the EC2 instance(s).
+*   **[deploy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L712)**: Deploys vLLM to AWS EC2.
+*   **[destroy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1261)**: Cleans up the vLLM Docker container on the AWS EC2 instance without terminating it.
+*   **[status_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1348)**: Checks the status of the AWS EC2 instance vLLM service.
+*   **[update_vllm_scaling](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1381)**: Scales EC2 instance type vertically.
+*   **[get_vllm_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L606)**: Generates the AWS EC2 deployment command and user data.
+*   **[get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1625)**: Generates an AWS EKS nodegroup config and Kubernetes manifest for Inferentia.
+*   **[check_gpu_quotas](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1739)**: Checks Inferentia/Neuron quotas for an AWS region.
 
 ### 📦 Model Management
-*   **[list_vertex_models](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L251)**: Lists models in the Vertex AI Registry.
-*   **[list_bucket_models](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L267)**: Lists model weights in GCS bucket.
-*   **[save_hf_token](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L49)**: Securely saves a Hugging Face API token to Secret Manager.
-*   **[get_vertex_ai_model_copy_instructions](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L693)**: Guide to transfer Gemma models from Vertex AI Model Garden to GCS.
-*   **[get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L737)**: Guide to transfer Gemma models from Hugging Face and upload to GCS.
-*   **[get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L718)**: Resolves local cache path using huggingface_hub.
+*   **[list_bucket_models](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L235)**: Lists model weights in S3 bucket.
+*   **[save_hf_token](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L49)**: Securely saves a Hugging Face API token to AWS Secrets Manager.
+*   **[get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1756)**: Instructions to download model from Hugging Face and upload to S3.
+*   **[get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1702)**: Resolves local cache path using huggingface_hub.
 
 ### 📊 Monitoring & Status
-*   **[get_system_status](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L974)**: Provides a high-level status dashboard of the Cloud Run service and health.
-*   **[get_endpoint](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L1042)**: Verifies connectivity and returns the active service URL.
-*   **[get_model_details](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L935)**: Retrieves detailed model metadata and engine state from `/v1/models`.
-*   **[verify_model_health](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L824)**: Deep health check by querying the model with a simple prompt and measuring latency.
+*   **[get_metrics](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L2015)**: Fetches raw Prometheus metrics from the running vLLM service's /metrics endpoint.
+*   **[get_system_status](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1925)**: Provides a high-level status dashboard of the service and health.
+*   **[get_endpoint](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L2042)**: Verifies connectivity and returns the active service URL.
+*   **[get_model_details](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1886)**: Retrieves detailed model metadata and engine state from `/v1/models`.
+*   **[verify_model_health](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1775)**: Deep health check by querying the model with a prompt and measuring latency.
 
 ### 📈 Performance & Benchmarking
-*   **[run_benchmark](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L1066)**: Runs performance/concurrency benchmark sweeps against the Cloud Run vLLM GPU endpoint.
+*   **[run_benchmark](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L2066)**: Runs performance/concurrency benchmark sweeps against the vLLM Inferentia endpoint.
 
 ### 💬 Interaction & Diagnostics
-*   **[query_gemma4](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L853)**: Primary tool to query the self-hosted model with standard chat message format.
-*   **[query_gemma4_with_stats](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L872)**: Queries the model and returns streaming performance statistics (TTFT, throughput).
-*   **[query_vllm](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L368)**: Direct text completions querying tool.
-*   **[analyze_cloud_logging](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L297)**: Fetches logs from GCP Logging and analyzes them using the model.
-*   **[analyze_gpu_logs](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L1215)**: Fetches Cloud Run logs and uses Gemma 4 to analyze them for SRE/DevOps errors.
-*   **[suggest_sre_remediation](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L343)**: Suggests remediation plans for SRE errors using the model.
-*   **[get_help](file:///home/xbill/gemma4-tips/gpu-12B-qat-L4-devops-agent/server.py#L1228)**: Provides help text and summarizes the configuration options and all available SRE/DevOps tools.
+*   **[query_gemma4](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1804)**: Primary tool to query the self-hosted model with standard chat message format.
+*   **[query_gemma4_with_stats](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1823)**: Queries the model and returns streaming performance statistics (TTFT, throughput).
+*   **[query_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L368)**: Direct text completions querying tool.
+*   **[analyze_cloud_logging](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L297)**: Fetches logs from AWS CloudWatch and analyzes them using the model.
+*   **[analyze_gpu_logs](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L2215)**: Fetches service logs and uses Gemma 4 to analyze them for SRE/DevOps errors.
+*   **[suggest_sre_remediation](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L343)**: Suggests remediation plans for SRE errors using the model.
+*   **[get_help](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L2228)**: Provides help text and summarizes the configuration options and all available SRE/DevOps tools.
 
 ## 📦 Resources
 The server exposes the following MCP resources:
-*   **`config://vllm-deployment-template`**: A YAML template for Cloud Run GPU deployment.
+*   **`config://vllm-deployment-template`**: A YAML template for AWS EC2 Inferentia deployment.
 
 ## 📊 Performance Benchmarks (Standard vs. QAT)
 

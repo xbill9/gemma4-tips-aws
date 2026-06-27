@@ -1,0 +1,33 @@
+--- STATUS: Failed ---
+{'CloudWatchOutputConfig': {'CloudWatchLogGroupName': '',
+                            'CloudWatchOutputEnabled': False},
+ 'CommandId': 'c1f0e5d9-f4cc-4403-8e4d-376c0f7def67',
+ 'Comment': '',
+ 'DocumentName': 'AWS-RunShellScript',
+ 'DocumentVersion': '$DEFAULT',
+ 'ExecutionElapsedTime': 'PT0S',
+ 'ExecutionEndDateTime': '2026-06-24T17:55:49.471Z',
+ 'ExecutionStartDateTime': '2026-06-24T17:55:49.471Z',
+ 'InstanceId': 'i-08dc36bcfb8241ee5',
+ 'PluginName': 'aws:runShellScript',
+ 'ResponseCode': 1,
+ 'ResponseMetadata': {'HTTPHeaders': {'cache-control': 'no-store',
+                                      'connection': 'keep-alive',
+                                      'content-length': '576',
+                                      'content-type': 'application/x-amz-json-1.1',
+                                      'date': 'Wed, 24 Jun 2026 17:55:50 GMT',
+                                      'server': 'Server',
+                                      'x-amzn-requestid': '17351970-2d74-4f65-82fd-1561a11c3359'},
+                      'HTTPStatusCode': 200,
+                      'RequestId': '17351970-2d74-4f65-82fd-1561a11c3359',
+                      'RetryAttempts': 0},
+ 'StandardErrorContent': '',
+ 'StandardErrorUrl': '',
+ 'StandardOutputContent': '',
+ 'StandardOutputUrl': '',
+ 'Status': 'Failed',
+ 'StatusDetails': 'Failed'}
+--- STDOUT ---
+
+--- STDERR ---
+

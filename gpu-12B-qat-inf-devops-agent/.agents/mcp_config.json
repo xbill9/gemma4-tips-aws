@@ -3,7 +3,7 @@
     "gpu-devops-agent": {
       "command": "python3",
       "args": [
-        "/home/xbill/gemma4-tips-aws/gpu-12B-qat-L4-devops-agent/server.py"
+        "/home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py"
       ],
       "env": {
         "GOOGLE_CLOUD_PROJECT": "aisprint-491218",

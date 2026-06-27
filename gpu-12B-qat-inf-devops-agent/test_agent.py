@@ -17,11 +17,9 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
         self.assertIn("analyze_cloud_logging", tools)
         self.assertIn("suggest_sre_remediation", tools)
         self.assertIn("get_vllm_deployment_config", tools)
-        self.assertIn("get_vertex_ai_model_copy_instructions", tools)
         self.assertIn("get_huggingface_model_copy_instructions", tools)
         self.assertIn("get_huggingfacehub_download_path", tools)
         self.assertIn("save_hf_token", tools)
-        self.assertIn("list_vertex_models", tools)
         self.assertIn("list_bucket_models", tools)
         self.assertIn("deploy_vllm", tools)
         self.assertIn("destroy_vllm", tools)
@@ -113,12 +111,12 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIn(
-            "Successfully requested AWS EC2 inf2.xlarge Spot Instance deployment for service 'test-service'", result
+            "Successfully requested AWS EC2 inf2.8xlarge Spot Instance deployment for service 'test-service'", result
         )
         self.assertIn("Instance ID: `i-999`", result)
         mock_ec2.run_instances.assert_called()
         args, kwargs = mock_ec2.run_instances.call_args
-        self.assertEqual(kwargs["InstanceType"], "inf2.xlarge")
+        self.assertEqual(kwargs["InstanceType"], "inf2.8xlarge")
         self.assertEqual(kwargs["ImageId"], "ami-012ba162b9cd2729c")
         self.assertEqual(kwargs["KeyName"], "alinux")
         self.assertEqual(kwargs["SubnetId"], "subnet-123")
@@ -199,12 +197,7 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
         self.assertIn("snapshot_download('test/slug')", instructions)
         self.assertIn("aws s3 cp", instructions)
 
-    def test_get_vertex_ai_model_copy_instructions(self):
-        """Test the output of the Vertex AI model copy instructions tool."""
-        from server import get_vertex_ai_model_copy_instructions
 
-        instructions = get_vertex_ai_model_copy_instructions("gemma-4-12B-it-qat-w4a16-ct")
-        self.assertIn("GCP Vertex AI is not configured. The agent is configured for AWS Inferentia.", instructions)
 
     @patch("boto3.client")
     def test_list_bucket_models_mock(self, mock_boto_client):

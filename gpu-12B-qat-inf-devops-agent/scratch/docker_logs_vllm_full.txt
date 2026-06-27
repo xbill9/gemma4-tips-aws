@@ -1,0 +1,189 @@
+2026-Jun-27 02:22:28.0567 243:2119 [1] int nccl_net_ofi_create_plugin(nccl_net_ofi_plugin_t**):225 CCOM WARN NET/OFI Failed to initialize sendrecv protocol
+2026-Jun-27 02:22:28.0569 243:2119 [1] int nccl_net_ofi_create_plugin(nccl_net_ofi_plugin_t**):376 CCOM WARN NET/OFI aws-ofi-nccl initialization failed
+2026-Jun-27 02:22:28.0571 243:2119 [1] ncclResult_t nccl_net_ofi_init(ncclDebugLogger_t):78 CCOM WARN NET/OFI Initializing plugin failed
+2026-Jun-27 02:22:28.0572 243:2119 [1] net_plugin.cc:97 CCOM WARN OFI plugin initNet() failed is EFA enabled?
+2026-Jun-27 02:22:28.0580 243:2119 [1] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jun-27 02:22:28.0581 243:2119 [1] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jun-27 02:22:28.0582 243:2118 [0] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:819] Overriding num_gpu_blocks=3 with num_gpu_blocks_override=129
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:1307] GPU KV cache size: 132,096 tokens
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:1312] Maximum concurrency for 1,024 tokens per request: 129.00x
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [core.py:278] init engine (profile, create kv cache, warmup model) took 0.00 seconds
+(EngineCore_DP0 pid=243) WARNING 06-27 02:22:33 [scheduler.py:166] Using custom scheduler class vllm_neuron.core.scheduler.ContinuousBatchingNeuronScheduler. This scheduler interface is not public and compatibility may not be maintained.
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:34 [vllm.py:689] Asynchronous scheduling is disabled.
+(APIServer pid=41) INFO 06-27 02:22:34 [api_server.py:481] Supported tasks: ['generate']
+(APIServer pid=41) WARNING 06-27 02:22:34 [model.py:1350] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'top_k': 64, 'top_p': 0.95}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+(APIServer pid=41) INFO 06-27 02:22:34 [serving.py:188] Warming up chat template processing...
+(APIServer pid=41) INFO 06-27 02:22:36 [hf.py:318] Detected the chat template content format to be 'openai'. You can set `--chat-template-content-format` to override this.
+(APIServer pid=41) INFO 06-27 02:22:36 [serving.py:213] Chat template warmup completed in 1924.8ms
+(APIServer pid=41) INFO 06-27 02:22:36 [api_server.py:486] Starting vLLM API server 0 on http://0.0.0.0:8080
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:38] Available routes are:
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /openapi.json, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /docs, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /redoc, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /load, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /version, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /scale_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /is_scaling_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /tokenize, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /detokenize, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /inference/v1/generate, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /metrics, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /health, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/models, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /ping, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /ping, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /invocations, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/chat/completions, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/chat/completions/render, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses/{response_id}, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses/{response_id}/cancel, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/completions, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/completions/render, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/messages, Methods: POST
+(APIServer pid=41) INFO:     69.141.234.3:52622 - "GET /health HTTP/1.1" 200 OK
+(APIServer pid=41) INFO:     69.141.234.3:52630 - "GET /v1/models HTTP/1.1" 200 OK
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:72] Dumping input data for V1 LLM engine (v0.16.0) with config: model='google/gemma-4-12B-it', speculative_config=None, tokenizer='google/gemma-4-12B-it', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=1024, download_dir=None, load_format=auto, tensor_parallel_size=2, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=True, quantization=neuron_quant, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cpu, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=google/gemma-4-12B-it, enable_prefix_caching=False, enable_chunked_prefill=False, pooler_config=None, compilation_config={'level': None, 'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'splitting_ops': ['vllm::unified_attention', 'vllm::unified_attention_with_output', 'vllm::unified_mla_attention', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update'], 'compile_mm_encoder': False, 'compile_sizes': None, 'compile_ranges_split_points': [512, 131072], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': None, 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'eliminate_noops': True, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': None, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}, 
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:79] Dumping scheduler output for model execution: SchedulerOutput(scheduled_new_reqs=[NewRequestData(req_id=chatcmpl-a2b6fea3932cffea-bb153fe7,prompt_token_ids_len=24,prefill_token_ids_len=None,mm_features=[],sampling_params=SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=1.0, top_p=0.95, top_k=64, min_p=0.0, seed=None, stop=[], stop_token_ids=[106, 50], bad_words=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=50, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None, structured_outputs=None, extra_args=None),block_ids=([1],),num_computed_tokens=0,lora_request=None,prompt_embeds_shape=None)], scheduled_cached_reqs=CachedRequestData(req_ids=[],resumed_req_ids=set(),new_token_ids_lens=[],all_token_ids_lens={},new_block_ids=[],num_computed_tokens=[],num_output_tokens=[]), num_scheduled_tokens={chatcmpl-a2b6fea3932cffea-bb153fe7: 24}, total_num_scheduled_tokens=24, scheduled_spec_decode_tokens={}, scheduled_encoder_inputs={}, num_common_prefix_blocks=[0], finished_req_ids=[], free_encoder_mm_hashes=[], preempted_req_ids=[], has_structured_output_requests=false, pending_structured_output_tokens=false, num_invalid_spec_tokens=null, kv_connector_metadata=null, ec_connector_metadata=null)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:81] Dumping scheduler stats: SchedulerStats(num_running_reqs=1, num_waiting_reqs=0, step_counter=0, current_wave=0, kv_cache_usage=0.0078125, encoder_cache_usage=0.0, prefix_cache_stats=PrefixCacheStats(reset=False, requests=0, queries=0, hits=0, preempted_requests=0, preempted_queries=0, preempted_hits=0), connector_prefix_cache_stats=None, kv_cache_eviction_events=[], spec_decoding_stats=None, kv_connector_stats=None, waiting_lora_adapters={}, running_lora_adapters={}, cudagraph_stats=None, perf_stats=None)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] EngineCore encountered a fatal error.
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 999, in run_engine_core
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     engine_core.run_busy_loop()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1026, in run_busy_loop
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     self._process_engine_step()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1060, in _process_engine_step
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs, model_executed = self.step_fn()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                               ^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 411, in step
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     model_output = future.result()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                    ^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.__get_result()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     raise self._exception
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/uniproc_executor.py", line 79, in collective_rpc
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     result = run_method(self.driver_worker, method, args, kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/serial_utils.py", line 459, in run_method
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return func(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/worker/worker_base.py", line 361, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.worker.execute_model(scheduler_output)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuron_worker.py", line 136, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     output = self.model_runner.execute_model(scheduler_output)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return func(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 759, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     hidden_states = self._execute_model_for_text(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 1074, in _execute_model_for_text
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     hidden_states = self.model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                     ^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 523, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     output = self.model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3428, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs, is_run_on_neuron = self._get_model_outputs(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3660, in _get_model_outputs
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs = self.context_encoding_model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 1347, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs = self._forward(*args)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 721, in _forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.model(*args)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] RuntimeError: The following operation failed in the TorchScript interpreter.
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback of TorchScript, serialized code (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 17, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     nxd_model = self.nxd_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     _0 = [argument_1, argument_2, argument_3, argument_4, argument_5, argument_6, argument_7]
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return (nxd_model).forward(_0, )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             ~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] class NxDModel(Module):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   __parameters__ = []
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 107, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     _17 = torch.eq("context_encoding_model", model_name)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     if _17:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       result1 = (context_encoding_model).forward(flattened_inputs14, torch.tensor(bucket_idx, dtype=3), )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       result0 = result1
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 397, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     if initialized:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       models2 = self.models
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       output = (models2[bucket_idx]).forward(inputs, )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       _102 = output
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] 
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback of TorchScript, original code (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 237, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         for name, model in self.models.items():
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             if name == model_name:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                 result = model.forward(flattened_inputs, torch.tensor(bucket_idx, dtype=torch.int32))
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                          ~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         result = self.packer(result)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 32, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         if initialized:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             output = self.models[bucket_idx].forward(inputs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                      ~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             return output
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] RuntimeError: Failed to execute the model status=1006 message=Execution Out-Of-Bounds Memory Access
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] 
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] AsyncLLM output_handler failed.
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] Traceback (most recent call last):
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/async_llm.py", line 666, in output_handler
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]     outputs = await engine_core.get_output_async()
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 910, in get_output_async
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]     raise self._format_exception(outputs) from None
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(APIServer pid=41) INFO:     69.141.234.3:52646 - "POST /v1/chat/completions HTTP/1.1" 200 OK

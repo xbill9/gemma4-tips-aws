@@ -1,0 +1,342 @@
+Preserving pre-installed transformers 4.57.6...
+Running comprehensive python patcher...
+Successfully patched /opt/vllm/vllm_neuron/worker/neuron_worker.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py
+Target not found in /opt/conda/lib/python3.12/site-packages/vllm/utils/torch_utils.py
+Detected Transformers version: 4.57.6
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/configuration_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/modeling_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/modeling_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/transformers_utils/config.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/transformers_utils/config.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/model_executor/models/registry.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/tokenization_utils_base.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/processing_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/processing_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/model_executor/models/gemma3_mm.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/vllm/multimodal/processing/context.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Target not found in /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Successfully patched /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Registering neuron_quant quantization method in vLLM...
+Detected 1 Neuron device(s). Using --tensor-parallel-size 2
+Starting vLLM Server with optimized parameters...
+INFO 06-27 02:06:27 [__init__.py:43] Available plugins for group vllm.platform_plugins:
+INFO 06-27 02:06:27 [__init__.py:45] - neuron -> vllm_neuron:register
+INFO 06-27 02:06:27 [__init__.py:48] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-27 02:06:27 [__init__.py:212] Platform plugin neuron is activated
+INFO 06-27 02:06:29 [importing.py:44] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 06-27 02:06:29 [importing.py:68] Triton not installed or not compatible; certain GPU-related functions will not be available.
+WARNING 06-27 02:06:29 [__init__.py:79] The quantization method 'neuron_quant' already exists and will be overwritten by the quantization config <class 'vllm.model_executor.layers.quantization.NeuronQuantConfig'>.
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287] 
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287]        █     █     █▄   ▄█
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.16.0
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287]   █▄█▀ █     █     █     █  model   google/gemma-4-12B-it
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:287] 
+(APIServer pid=41) INFO 06-27 02:06:30 [utils.py:223] non-default args: {'host': '0.0.0.0', 'port': 8080, 'model': 'google/gemma-4-12B-it', 'max_model_len': 1024, 'quantization': 'neuron_quant', 'tensor_parallel_size': 2, 'block_size': 16, 'swap_space': 0.0, 'num_gpu_blocks_override': 128, 'enable_prefix_caching': False, 'limit_mm_per_prompt': {'image': 0, 'audio': 0}, 'max_num_batched_tokens': 512, 'max_num_seqs': 2, 'async_scheduling': False}
+(APIServer pid=41) WARNING 06-27 02:06:38 [interface.py:225] Failed to import from vllm._C: ImportError('libcuda.so.1: cannot open shared object file: No such file or directory')
+(APIServer pid=41) INFO 06-27 02:06:40 [model.py:529] Resolved architecture: Gemma4UnifiedForConditionalGeneration
+(APIServer pid=41) INFO 06-27 02:06:40 [scheduler.py:224] Chunked prefill is enabled with max_num_batched_tokens=512.
+(APIServer pid=41) INFO 06-27 02:06:40 [vllm.py:689] Asynchronous scheduling is disabled.
+(APIServer pid=41) INFO 06-27 02:06:42 [registry.py:146] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+INFO 06-27 02:06:46 [__init__.py:43] Available plugins for group vllm.platform_plugins:
+INFO 06-27 02:06:46 [__init__.py:45] - neuron -> vllm_neuron:register
+INFO 06-27 02:06:46 [__init__.py:48] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-27 02:06:46 [__init__.py:212] Platform plugin neuron is activated
+INFO 06-27 02:06:49 [importing.py:44] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 06-27 02:06:49 [importing.py:68] Triton not installed or not compatible; certain GPU-related functions will not be available.
+WARNING 06-27 02:06:49 [__init__.py:79] The quantization method 'neuron_quant' already exists and will be overwritten by the quantization config <class 'vllm.model_executor.layers.quantization.NeuronQuantConfig'>.
+(EngineCore_DP0 pid=243) INFO 06-27 02:06:50 [core.py:97] Initializing a V1 LLM engine (v0.16.0) with config: model='google/gemma-4-12B-it', speculative_config=None, tokenizer='google/gemma-4-12B-it', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=1024, download_dir=None, load_format=auto, tensor_parallel_size=2, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=True, quantization=neuron_quant, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cpu, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=google/gemma-4-12B-it, enable_prefix_caching=False, enable_chunked_prefill=False, pooler_config=None, compilation_config={'level': None, 'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'splitting_ops': ['vllm::unified_attention', 'vllm::unified_attention_with_output', 'vllm::unified_mla_attention', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update'], 'compile_mm_encoder': False, 'compile_sizes': None, 'compile_ranges_split_points': [512], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': None, 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'eliminate_noops': True, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': None, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}
+(EngineCore_DP0 pid=243) WARNING 06-27 02:06:50 [interface.py:225] Failed to import from vllm._C: ImportError('libcuda.so.1: cannot open shared object file: No such file or directory')
+(EngineCore_DP0 pid=243) INFO 06-27 02:06:53 [registry.py:146] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+(EngineCore_DP0 pid=243) INFO 06-27 02:06:56 [parallel_state.py:1234] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://172.17.0.2:50245 backend=gloo
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+(EngineCore_DP0 pid=243) INFO 06-27 02:06:56 [parallel_state.py:1445] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:638] > initializing tensor model parallel with size 2
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:639] > initializing pipeline model parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:640] > initializing context model parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:641] > initializing data parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:642] > initializing world size to 2
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:387] [rank_0_pp-1_tp-1_dp-1_cp-1] Chosen Logic for replica groups ret_logic=<PG_Group_Logic.LOGIC1: (<function ascending_ring_PG_group at 0x71b67712b9c0>, 'Ascending Ring PG Group')>
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.111: I neuronx_distributed/parallel_layers/parallel_state.py:666] [rank_0_pp-1_tp-1_dp-1_cp-1] tp_groups: replica_groups.tp_groups=[[0, 1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.112: I neuronx_distributed/parallel_layers/parallel_state.py:667] [rank_0_pp-1_tp-1_dp-1_cp-1] dp_groups: replica_groups.dp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.112: I neuronx_distributed/parallel_layers/parallel_state.py:668] [rank_0_pp-1_tp-1_dp-1_cp-1] pp_groups: replica_groups.pp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.112: I neuronx_distributed/parallel_layers/parallel_state.py:669] [rank_0_pp-1_tp-1_dp-1_cp-1] cp_groups: replica_groups.cp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.112: I neuronx_distributed/parallel_layers/parallel_state.py:670] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_model_groups: replica_groups.ep_model_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:08:17.112: I neuronx_distributed/parallel_layers/parallel_state.py:671] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_data_groups: replica_groups.ep_data_groups=[[0], [1]]
+...............
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:13:38.000036:  243  [INFO]: Compilation Successfully Completed for model.MODULE_6cc2921f34a00cdc6406+ada15cd3.hlo_module.pb
+.................
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:14:30.000625:  243  [INFO]: Compilation Successfully Completed for model.MODULE_422fe7f6975bdd969e1c+7ff39289.hlo_module.pb
+....
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:14:34.000787:  243  [INFO]: Compilation Successfully Completed for model.MODULE_035073ab3c7bb19ea9fa+75499088.hlo_module.pb
+
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:14:46.000237:  243  [INFO]: Compilation Successfully Completed for model.MODULE_d08d38a9f6d6c66f2c9d+b770cf3c.hlo_module.pb
+........
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:15:21.000845:  243  [INFO]: Compilation Successfully Completed for model.MODULE_1cc6960a705718bffe69+aae89797.hlo_module.pb
+....................................
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:19:20.000554:  243  [INFO]: Compilation Successfully Completed for model.MODULE_3b15236d751df38d7a8e+c052ed11.hlo_module.pb
+
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:19:26.000324:  243  [INFO]: Compilation Successfully Completed for model.MODULE_dca29d33de315914fb83+b7e43e95.hlo_module.pb
+
+Compiler status PASS
+(EngineCore_DP0 pid=243) 2026-06-27 02:19:27.000130:  243  [INFO]: Compilation Successfully Completed for model.MODULE_4ea8d12f2394b5509077+d255693e.hlo_module.pb
+........
+Compiler status PASS
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.556: I neuronx_distributed/parallel_layers/parallel_state.py:638] > initializing tensor model parallel with size 2
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.556: I neuronx_distributed/parallel_layers/parallel_state.py:639] > initializing pipeline model parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.556: I neuronx_distributed/parallel_layers/parallel_state.py:640] > initializing context model parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.556: I neuronx_distributed/parallel_layers/parallel_state.py:641] > initializing data parallel with size 1
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.556: I neuronx_distributed/parallel_layers/parallel_state.py:642] > initializing world size to 2
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:387] [rank_0_pp-1_tp-1_dp-1_cp-1] Chosen Logic for replica groups ret_logic=<PG_Group_Logic.LOGIC1: (<function ascending_ring_PG_group at 0x71b67712b9c0>, 'Ascending Ring PG Group')>
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:666] [rank_0_pp-1_tp-1_dp-1_cp-1] tp_groups: replica_groups.tp_groups=[[0, 1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:667] [rank_0_pp-1_tp-1_dp-1_cp-1] dp_groups: replica_groups.dp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:668] [rank_0_pp-1_tp-1_dp-1_cp-1] pp_groups: replica_groups.pp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:669] [rank_0_pp-1_tp-1_dp-1_cp-1] cp_groups: replica_groups.cp_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:670] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_model_groups: replica_groups.ep_model_groups=[[0], [1]]
+(EngineCore_DP0 pid=243) [2026-06-27 02:22:01.557: I neuronx_distributed/parallel_layers/parallel_state.py:671] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_data_groups: replica_groups.ep_data_groups=[[0], [1]]
+2026-Jun-27 02:22:28.0567 243:2119 [1] int nccl_net_ofi_create_plugin(nccl_net_ofi_plugin_t**):225 CCOM WARN NET/OFI Failed to initialize sendrecv protocol
+2026-Jun-27 02:22:28.0569 243:2119 [1] int nccl_net_ofi_create_plugin(nccl_net_ofi_plugin_t**):376 CCOM WARN NET/OFI aws-ofi-nccl initialization failed
+2026-Jun-27 02:22:28.0571 243:2119 [1] ncclResult_t nccl_net_ofi_init(ncclDebugLogger_t):78 CCOM WARN NET/OFI Initializing plugin failed
+2026-Jun-27 02:22:28.0572 243:2119 [1] net_plugin.cc:97 CCOM WARN OFI plugin initNet() failed is EFA enabled?
+2026-Jun-27 02:22:28.0580 243:2119 [1] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jun-27 02:22:28.0581 243:2119 [1] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jun-27 02:22:28.0582 243:2118 [0] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:819] Overriding num_gpu_blocks=3 with num_gpu_blocks_override=129
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:1307] GPU KV cache size: 132,096 tokens
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [kv_cache_utils.py:1312] Maximum concurrency for 1,024 tokens per request: 129.00x
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:33 [core.py:278] init engine (profile, create kv cache, warmup model) took 0.00 seconds
+(EngineCore_DP0 pid=243) WARNING 06-27 02:22:33 [scheduler.py:166] Using custom scheduler class vllm_neuron.core.scheduler.ContinuousBatchingNeuronScheduler. This scheduler interface is not public and compatibility may not be maintained.
+(EngineCore_DP0 pid=243) INFO 06-27 02:22:34 [vllm.py:689] Asynchronous scheduling is disabled.
+(APIServer pid=41) INFO 06-27 02:22:34 [api_server.py:481] Supported tasks: ['generate']
+(APIServer pid=41) WARNING 06-27 02:22:34 [model.py:1350] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'top_k': 64, 'top_p': 0.95}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+(APIServer pid=41) INFO 06-27 02:22:34 [serving.py:188] Warming up chat template processing...
+(APIServer pid=41) INFO 06-27 02:22:36 [hf.py:318] Detected the chat template content format to be 'openai'. You can set `--chat-template-content-format` to override this.
+(APIServer pid=41) INFO 06-27 02:22:36 [serving.py:213] Chat template warmup completed in 1924.8ms
+(APIServer pid=41) INFO 06-27 02:22:36 [api_server.py:486] Starting vLLM API server 0 on http://0.0.0.0:8080
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:38] Available routes are:
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /openapi.json, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /docs, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /redoc, Methods: HEAD, GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /load, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /version, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /scale_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /is_scaling_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /tokenize, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /detokenize, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /inference/v1/generate, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /metrics, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /health, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/models, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /ping, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /ping, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /invocations, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/chat/completions, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/chat/completions/render, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses/{response_id}, Methods: GET
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/responses/{response_id}/cancel, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/completions, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/completions/render, Methods: POST
+(APIServer pid=41) INFO 06-27 02:22:36 [launcher.py:47] Route: /v1/messages, Methods: POST
+(APIServer pid=41) INFO:     69.141.234.3:52622 - "GET /health HTTP/1.1" 200 OK
+(APIServer pid=41) INFO:     69.141.234.3:52630 - "GET /v1/models HTTP/1.1" 200 OK
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:72] Dumping input data for V1 LLM engine (v0.16.0) with config: model='google/gemma-4-12B-it', speculative_config=None, tokenizer='google/gemma-4-12B-it', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=1024, download_dir=None, load_format=auto, tensor_parallel_size=2, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=True, quantization=neuron_quant, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cpu, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=google/gemma-4-12B-it, enable_prefix_caching=False, enable_chunked_prefill=False, pooler_config=None, compilation_config={'level': None, 'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'splitting_ops': ['vllm::unified_attention', 'vllm::unified_attention_with_output', 'vllm::unified_mla_attention', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update'], 'compile_mm_encoder': False, 'compile_sizes': None, 'compile_ranges_split_points': [512, 131072], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': None, 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'eliminate_noops': True, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': None, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}, 
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:79] Dumping scheduler output for model execution: SchedulerOutput(scheduled_new_reqs=[NewRequestData(req_id=chatcmpl-a2b6fea3932cffea-bb153fe7,prompt_token_ids_len=24,prefill_token_ids_len=None,mm_features=[],sampling_params=SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=1.0, top_p=0.95, top_k=64, min_p=0.0, seed=None, stop=[], stop_token_ids=[106, 50], bad_words=[], include_stop_str_in_output=False, ignore_eos=False, max_tokens=50, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, truncate_prompt_tokens=None, structured_outputs=None, extra_args=None),block_ids=([1],),num_computed_tokens=0,lora_request=None,prompt_embeds_shape=None)], scheduled_cached_reqs=CachedRequestData(req_ids=[],resumed_req_ids=set(),new_token_ids_lens=[],all_token_ids_lens={},new_block_ids=[],num_computed_tokens=[],num_output_tokens=[]), num_scheduled_tokens={chatcmpl-a2b6fea3932cffea-bb153fe7: 24}, total_num_scheduled_tokens=24, scheduled_spec_decode_tokens={}, scheduled_encoder_inputs={}, num_common_prefix_blocks=[0], finished_req_ids=[], free_encoder_mm_hashes=[], preempted_req_ids=[], has_structured_output_requests=false, pending_structured_output_tokens=false, num_invalid_spec_tokens=null, kv_connector_metadata=null, ec_connector_metadata=null)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [dump_input.py:81] Dumping scheduler stats: SchedulerStats(num_running_reqs=1, num_waiting_reqs=0, step_counter=0, current_wave=0, kv_cache_usage=0.0078125, encoder_cache_usage=0.0, prefix_cache_stats=PrefixCacheStats(reset=False, requests=0, queries=0, hits=0, preempted_requests=0, preempted_queries=0, preempted_hits=0), connector_prefix_cache_stats=None, kv_cache_eviction_events=[], spec_decoding_stats=None, kv_connector_stats=None, waiting_lora_adapters={}, running_lora_adapters={}, cudagraph_stats=None, perf_stats=None)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] EngineCore encountered a fatal error.
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 999, in run_engine_core
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     engine_core.run_busy_loop()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1026, in run_busy_loop
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     self._process_engine_step()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1060, in _process_engine_step
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs, model_executed = self.step_fn()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                               ^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 411, in step
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     model_output = future.result()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                    ^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.__get_result()
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     raise self._exception
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/uniproc_executor.py", line 79, in collective_rpc
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     result = run_method(self.driver_worker, method, args, kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/serial_utils.py", line 459, in run_method
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return func(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/worker/worker_base.py", line 361, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.worker.execute_model(scheduler_output)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuron_worker.py", line 136, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     output = self.model_runner.execute_model(scheduler_output)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return func(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 759, in execute_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     hidden_states = self._execute_model_for_text(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 1074, in _execute_model_for_text
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     hidden_states = self.model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                     ^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 523, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     output = self.model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]              ^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3428, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs, is_run_on_neuron = self._get_model_outputs(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_base.py", line 3660, in _get_model_outputs
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs = self.context_encoding_model(
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 1347, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     outputs = self._forward(*args)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]               ^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/model_wrapper.py", line 721, in _forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self.model(*args)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return self._call_impl(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return forward_call(*args, **kwargs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] RuntimeError: The following operation failed in the TorchScript interpreter.
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback of TorchScript, serialized code (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 17, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     nxd_model = self.nxd_model
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     _0 = [argument_1, argument_2, argument_3, argument_4, argument_5, argument_6, argument_7]
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     return (nxd_model).forward(_0, )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             ~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] class NxDModel(Module):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   __parameters__ = []
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 107, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     _17 = torch.eq("context_encoding_model", model_name)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     if _17:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       result1 = (context_encoding_model).forward(flattened_inputs14, torch.tensor(bucket_idx, dtype=3), )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       result0 = result1
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "code/__torch__/neuronx_distributed/trace/spmd.py", line 397, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     if initialized:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       models2 = self.models
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       output = (models2[bucket_idx]).forward(inputs, )
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]       _102 = output
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] 
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] Traceback of TorchScript, original code (most recent call last):
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 237, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         for name, model in self.models.items():
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             if name == model_name:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                 result = model.forward(flattened_inputs, torch.tensor(bucket_idx, dtype=torch.int32))
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                          ~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         result = self.packer(result)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/spmd.py", line 32, in forward
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]     
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         if initialized:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             output = self.models[bucket_idx].forward(inputs)
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]                      ~~~~~~~~~~~~~~~~~~~~~~~ <--- HERE
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]             return output
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008]         else:
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] RuntimeError: Failed to execute the model status=1006 message=Execution Out-Of-Bounds Memory Access
+(EngineCore_DP0 pid=243) ERROR 06-27 02:23:02 [core.py:1008] 
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] AsyncLLM output_handler failed.
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] Traceback (most recent call last):
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/async_llm.py", line 666, in output_handler
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]     outputs = await engine_core.get_output_async()
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core_client.py", line 910, in get_output_async
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710]     raise self._format_exception(outputs) from None
+(APIServer pid=41) ERROR 06-27 02:23:02 [async_llm.py:710] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(APIServer pid=41) INFO:     69.141.234.3:52646 - "POST /v1/chat/completions HTTP/1.1" 200 OK
