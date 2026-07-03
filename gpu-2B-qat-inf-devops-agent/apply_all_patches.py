@@ -215,10 +215,7 @@ gemma3_fused_target = '''            if config.neuron_config.fused_qkv:
                 del state_dict[f"layers.{i}.self_attn.k_proj.{attr}"]
                 del state_dict[f"layers.{i}.self_attn.v_proj.{attr}"]'''
 
-gemma3_fused_repl = '''            if f"layers.{i}.self_attn.k_proj.weight" in state_dict and f"layers.{i}.self_attn.v_proj.weight" not in state_dict:
-                state_dict[f"layers.{i}.self_attn.v_proj.weight"] = state_dict[f"layers.{i}.self_attn.k_proj.weight"].clone()
-            
-            # Determine if this layer is a sliding window layer
+gemma3_fused_repl = '''            # Determine if this layer is a sliding window layer
             swa_layer = (i + 1) % 5 != 0
             is_fused_layer = config.neuron_config.fused_qkv and swa_layer
 
@@ -270,7 +267,15 @@ gemma3_attn_init_repl = '''class NeuronGemma3Attention(NeuronAttentionBase):
         if layer_idx is not None and (layer_idx + 1) % 5 == 0:
             head_dim = getattr(config, "global_head_dim", 512)
         self.is_sliding_window_attention = config.sliding_window is not None and (layer_idx is None or (layer_idx + 1) % 5 != 0)
-        self.layer_idx = layer_idx'''
+        self.layer_idx = layer_idx
+        # Gemma4 KV sharing: layers >= 15 reuse K/V states of the last non-shared
+        # layer of the same type (13 = sliding, 14 = full). Static at trace time.
+        _is_swa = layer_idx is None or (layer_idx + 1) % 5 != 0
+        self.gemma4_layer_type = "sliding" if _is_swa else "full"
+        self.gemma4_shared_kv = layer_idx is not None and layer_idx >= 15
+        self.gemma4_store_kv = layer_idx in (13, 14)
+        self.gemma4_v_norm = not self.gemma4_shared_kv
+        self.gemma4_rms_eps = config.rms_norm_eps'''
 
 patch_file(
     '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
@@ -335,11 +340,38 @@ gemma3_super_init_target = '''            use_scaled_rope=None,
             softmax_scale=(config.query_pre_attn_scalar**(.5))'''
 gemma3_super_init_repl = '''            use_scaled_rope=None,
             sliding_window=None if (layer_idx is not None and (layer_idx + 1) % 5 == 0) else config.sliding_window,
-            softmax_scale=(config.query_pre_attn_scalar**(.5))'''
+            softmax_scale=1.0'''
 patch_file(
     '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
     gemma3_super_init_target,
     gemma3_super_init_repl
+)
+
+# 2f3. Gemma4 applies q_norm/k_norm (pre-RoPE); vendor gemma3 loads the weights but
+# never applies them with use_qk_norm=False.
+patch_file(
+    '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
+    '''            use_qk_norm=False,''',
+    '''            use_qk_norm=True,'''
+)
+
+# 2f4. Gemma4 checkpoints store full RMSNorm weights (e.g. input_layernorm mean ~10.7),
+# unlike Gemma3 which stores zero-centered weights. Remove every +1.0 offset the
+# vendor conversion applies.
+patch_file(
+    '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
+    '''        state_dict["norm.weight"] += 1.0''',
+    '''        pass  # Gemma4: norm.weight stored as full weight, no +1.0 offset'''
+)
+patch_file(
+    '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
+    '''            state_dict[f"layers.{i}.self_attn.k_layernorm.weight"] += 1.0
+            state_dict[f"layers.{i}.self_attn.q_layernorm.weight"] += 1.0
+            state_dict[f"layers.{i}.input_layernorm.weight"] += 1.0
+            state_dict[f"layers.{i}.post_attention_layernorm.weight"] += 1.0
+            state_dict[f"layers.{i}.post_feedforward_layernorm.weight"] += 1.0
+            state_dict[f"layers.{i}.pre_feedforward_layernorm.weight"] += 1.0''',
+    '''            pass  # Gemma4: all layer norms stored as full weights, no +1.0 offsets'''
 )
 
 # 2g. Patch global_rotary_emb dimension in modeling_gemma3.py
@@ -586,15 +618,44 @@ if os.path.exists(attention_base_file):
 
 
 
-    # Patch prep_qkv_tensors to pad Q, K, V from 256 to 512
+    # Patch prep_qkv_tensors: Gemma4 v_norm, KV sharing stash, then pad 256 -> 512
     target_prep = '        return Q, K, V, cos_cache, sin_cache, residual'
-    repl_prep = '''        if Q.shape[-1] < 512:
+    repl_prep = '''        # Gemma4: scale-less RMSNorm on V (v_norm, with_scale=False) for non-shared layers
+        if getattr(self, "gemma4_v_norm", False):
+            _vf = V.to(torch.float32)
+            _vms = _vf.pow(2).mean(-1, keepdim=True) + getattr(self, "gemma4_rms_eps", 1e-6)
+            V = (_vf * torch.pow(_vms, -0.5)).to(V.dtype)
+        # Gemma4 KV sharing: source layers (13 sliding / 14 full) stash post-RoPE K/V;
+        # shared layers (>= 15) discard their own K/V and reuse the stash. The stash is
+        # plain tensor plumbing within one forward pass, so it bakes into the traced graph.
+        _gemma4_stash = globals().setdefault("_GEMMA4_KV_STASH", {})
+        if getattr(self, "gemma4_store_kv", False):
+            _gemma4_stash[self.gemma4_layer_type] = (K, V)
+        elif getattr(self, "gemma4_shared_kv", False):
+            K, V = _gemma4_stash[self.gemma4_layer_type]
+        if Q.shape[-1] < 512:
             import torch.nn.functional as F
             Q = F.pad(Q, (0, 512 - Q.shape[-1]))
             K = F.pad(K, (0, 512 - K.shape[-1]))
             V = F.pad(V, (0, 512 - V.shape[-1]))
         return Q, K, V, cos_cache, sin_cache, residual'''
     patch_file(attention_base_file, target_prep, repl_prep)
+
+    # Patch: enforce sliding-window mask during token generation (merged from patch_swa_mask.py,
+    # which previously had to be applied by hand and was lost on every container rebuild)
+    target_swa_mask = '''        # pad the attention mask if the KV cache is padded
+        if prior_scores.shape[-1] > attention_mask.shape[-1] and self.neuron_config.apply_seq_ids_mask:
+            attention_mask = F.pad(attention_mask, (0, prior_scores.shape[-1] - attention_mask.shape[-1]), "constant", 0)'''
+    repl_swa_mask = target_swa_mask + '''
+
+        if getattr(self, "sliding_window", None) is not None:
+            seq_len = prior_scores.shape[-1]
+            batch_size = prior_scores.shape[0]
+            idx = torch.arange(seq_len, device=prior_scores.device, dtype=position_ids.dtype).view(1, 1, 1, seq_len)
+            pos = position_ids.view(batch_size, 1, 1, 1)
+            swa_mask = idx >= (pos - self.sliding_window + 1)
+            attention_mask = attention_mask & swa_mask'''
+    patch_file(attention_base_file, target_swa_mask, repl_swa_mask)
 
     # Patch 12: Trim KV cache prior tensors back to true head_dim for token generation warmup crash
     target_token_gen = '''        if getattr(self, "head_dim", 0) == 256:
@@ -1822,87 +1883,18 @@ if os.path.exists(vllm_serving_file):
             layer_outputs = decoder_layer('''
         patch_file(model_base_file, loop_target, loop_repl)
 
-        # Patch 36: Safe check for past_key_values bound inside model_base.py for shared layers to avoid XLA lower errors
+        # Patch 36: Gemma4 KV sharing (prior context) — shared layers (>= 15) read the
+        # KV cache slot of their source layer (13 = sliding, 14 = full). idx is a Python
+        # int at trace time, so the redirect bakes statically into the compiled graph.
         loop_target2 = '''            past_key_value = past_key_values[idx] if past_key_values is not None else None'''
-        loop_repl2 = '''            if past_key_values is not None and idx < len(past_key_values):
-                past_key_value = past_key_values[idx]
+        loop_repl2 = '''            _gemma4_src_idx = idx
+            if idx >= 15:
+                _gemma4_src_idx = 13 if (idx + 1) % 5 != 0 else 14
+            if past_key_values is not None and _gemma4_src_idx < len(past_key_values):
+                past_key_value = past_key_values[_gemma4_src_idx]
             else:
                 past_key_value = None'''
         patch_file(model_base_file, loop_target2, loop_repl2)
-
-        # Patch 37: Return unmodified cache for idx >= 20 to bypass updates without returning duplicates
-        mgr_files = [
-            '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py',
-            '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py',
-            '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py'
-        ]
-        for mgr_f in mgr_files:
-            if not os.path.exists(mgr_f):
-                continue
-            update_target = '''    def update_kv_by_layer_id('''
-            update_repl = '''    def update_kv_by_layer_id(
-        self,
-        idx,
-        *args,
-        **kwargs,
-    ):
-        import os
-        import torch
-        if (os.environ.get("IS_NEURON_COMPILING") == "1") or torch.jit.is_tracing():
-            return self.update_kv_by_layer_id_original(idx, *args, **kwargs)
-        if idx >= 20:
-            is_swa_layer = (idx + 1) % 5 != 0
-            source_idx = 18 if is_swa_layer else 19
-            return self.update_kv_by_layer_id_original(source_idx, *args, **kwargs)
-        return self.update_kv_by_layer_id_original(idx, *args, **kwargs)
-
-    def update_kv_by_layer_id_original('''
-            patch_file(mgr_f, update_target, update_repl)
-
-        # Patch 37b: Redirect get_kv_by_layer_id for shared layers >= 20 to physical layers 18 or 19
-        for mgr_f in mgr_files:
-            if not os.path.exists(mgr_f):
-                continue
-            get_target = '''    def get_kv_by_layer_id('''
-            get_repl = '''    def get_kv_by_layer_id(
-        self,
-        idx,
-        *args,
-        **kwargs,
-    ):
-        import os
-        import torch
-        if (os.environ.get("IS_NEURON_COMPILING") == "1") or torch.jit.is_tracing():
-            return self.get_kv_by_layer_id_original(idx, *args, **kwargs)
-        if idx >= 20:
-            is_swa_layer = (idx + 1) % 5 != 0
-            source_idx = 18 if is_swa_layer else 19
-            return self.get_kv_by_layer_id_original(source_idx, *args, **kwargs)
-        return self.get_kv_by_layer_id_original(idx, *args, **kwargs)
-
-    def get_kv_by_layer_id_original('''
-            patch_file(mgr_f, get_target, get_repl)
-
-        # Patch 38: Intercept compile in application_base.py to set/unset IS_NEURON_COMPILING env var
-        app_base_f = '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/application_base.py'
-        app_base_target = '''    def compile('''
-        app_base_repl = '''    def compile(
-        self,
-        compiled_model_path,
-        debug=False,
-        pre_shard_weights_hook=None,
-        dry_run=False,
-        disable_fail_fast=False,
-    ):
-        import os
-        os.environ["IS_NEURON_COMPILING"] = "1"
-        try:
-            return self.compile_original(compiled_model_path, debug, pre_shard_weights_hook, dry_run, disable_fail_fast)
-        finally:
-            os.environ.pop("IS_NEURON_COMPILING", None)
-
-    def compile_original('''
-        patch_file(app_base_f, app_base_target, app_base_repl)
 
     # 39. Patch modeling_gemma3.py to implement Per-Layer Embeddings (PLE)
     gemma3_file = '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py'
@@ -1972,7 +1964,9 @@ if os.path.exists(vllm_serving_file):
         else:
             self.per_layer_input_gate = None
             self.per_layer_projection = None
-            self.post_per_layer_input_norm = None'''
+            self.post_per_layer_input_norm = None
+        # Gemma4: trained per-layer output scalar, multiplies the full layer output
+        self.register_buffer("layer_scalar", torch.ones(1, dtype=config.neuron_config.torch_dtype))'''
         patch_file(gemma3_file, gemma3_layer_init_target, gemma3_layer_init_repl)
 
         # 39c. Update layers instantiation in NeuronGemma3TextModel.init_model
@@ -2078,7 +2072,11 @@ if os.path.exists(vllm_serving_file):
             actual_embeds = inputs_embeds
             if actual_embeds is None or actual_embeds.numel() == 0:
                 actual_embeds = self.embed_tokens(input_ids)
-            per_layer_inputs = self.embed_tokens_per_layer(input_ids)
+            # Gemma4 reference feeds SCALED embeddings (x sqrt(hidden_size)) into the
+            # per-layer projection; the vendor embed_tokens returns raw embeddings.
+            actual_embeds = actual_embeds * (self.config.hidden_size ** 0.5)
+            # Gemma4 reference scales per-layer embeddings by sqrt(hidden_size_per_layer_input)
+            per_layer_inputs = self.embed_tokens_per_layer(input_ids) * (hidden_size_per_layer_input ** 0.5)
             per_layer_inputs = per_layer_inputs.reshape(
                 *input_ids.shape,
                 self.config.num_hidden_layers,
@@ -2151,6 +2149,9 @@ if os.path.exists(vllm_serving_file):
             ple_signal = self.post_per_layer_input_norm(ple_signal)
             hidden_states = hidden_states + ple_signal
 
+        # Gemma4: scale the full layer output by the trained per-layer scalar
+        hidden_states = hidden_states * self.layer_scalar
+
         # # End module marker
         # hidden_states = ModuleMarkerEndWrapper()(hidden_states)
         outputs = (hidden_states, present_key_value, cos_cache, sin_cache, None)'''
@@ -2169,7 +2170,7 @@ if os.path.exists(vllm_serving_file):
                 print(f"LOADING PLE KEYS FROM {safetensors_file}...")
                 with safe_open(safetensors_file, framework="pt", device="cpu") as sf:
                     for k in sf.keys():
-                        if "per_layer" in k or "embed_tokens_per_layer" in k:
+                        if "per_layer" in k or "embed_tokens_per_layer" in k or "layer_scalar" in k:
                             state_dict[k] = sf.get_tensor(k)
                 print(f"SUCCESSFULLY LOADED PLE KEYS. TOTAL KEYS NOW: {len(state_dict)}")
             else:
@@ -2198,23 +2199,11 @@ if os.path.exists(vllm_serving_file):
                 state_dict["embed_tokens_per_layer.rank_util.rank"] = torch.arange(
                     0, neuron_config.local_ranks_size
                 )
-        if "per_layer_projection_norm.weight" in state_dict:
-            state_dict["per_layer_projection_norm.weight"] += 1.0
         print("DEBUG STATE DICT PLE KEYS AFTER:", [k for k in state_dict.keys() if "per_layer" in k or "embed_tokens_per_layer" in k])'''
         patch_file(gemma3_file, gemma3_state_dict_target, gemma3_state_dict_repl)
 
-        # 39h. Patch convert_hf_to_neuron_state_dict layer loop to apply post_per_layer_input_norm offset
-        gemma3_state_dict_layer_target = '''            state_dict[f"layers.{i}.input_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.post_attention_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.post_feedforward_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.pre_feedforward_layernorm.weight"] += 1.0'''
-        gemma3_state_dict_layer_repl = '''            state_dict[f"layers.{i}.input_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.post_attention_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.post_feedforward_layernorm.weight"] += 1.0
-            state_dict[f"layers.{i}.pre_feedforward_layernorm.weight"] += 1.0
-            if f"layers.{i}.post_per_layer_input_norm.weight" in state_dict:
-                state_dict[f"layers.{i}.post_per_layer_input_norm.weight"] += 1.0'''
-        patch_file(gemma3_file, gemma3_state_dict_layer_target, gemma3_state_dict_layer_repl)
+        # 39h (removed): Gemma4 stores full norm weights — no +1.0 offsets anywhere.
+        # The vendor's gemma3-style offsets are stripped by patch 2f4 above.
 
 
 

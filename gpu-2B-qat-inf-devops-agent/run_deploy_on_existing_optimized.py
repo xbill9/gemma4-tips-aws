@@ -125,6 +125,22 @@ python3 -m vllm.entrypoints.openai.api_server \
   --port 8080
 """
 
+    mount_sh = """
+ROOT_DISK=$(lsblk -no PKNAME $(findmnt -n -o SOURCE /) | head -n 1)
+CACHE_DEV=$(lsblk -dln -o NAME,TYPE | awk '$2=="disk" {print $1}' | grep -v "$ROOT_DISK" | head -n 1)
+if [ -n "$CACHE_DEV" ]; then
+  CACHE_DEV="/dev/$CACHE_DEV";
+  PART=$(lsblk -ln -o NAME,TYPE | grep "^${CACHE_DEV##*/}" | awk '$2=="part" {print "/dev/"$1}' | head -n 1);
+  if [ -n "$PART" ]; then CACHE_DEV="$PART"; fi;
+  echo "Mounting $CACHE_DEV on /home/ubuntu/.cache";
+  umount /home/ubuntu/.cache || true;
+  mkdir -p /home/ubuntu/.cache;
+  mount "$CACHE_DEV" /home/ubuntu/.cache || { mkfs -t ext4 "$CACHE_DEV" && mount "$CACHE_DEV" /home/ubuntu/.cache; };
+  chown -R ubuntu:ubuntu /home/ubuntu/.cache;
+  chmod -R 777 /home/ubuntu/.cache;
+fi
+"""
+
     # We write a deployment shell script that runs on the host to avoid python-to-SSM variable/quoting issues
     deploy_sh_content = f"""#!/bin/bash
 set -e
@@ -133,10 +149,10 @@ echo "Stopping and removing existing vllm-server container..."
 docker stop vllm-server || true
 docker rm vllm-server || true
 
-echo "Clearing JIT compiler cache on host..."
-sudo rm -rf /home/ubuntu/neuron-compile-cache/* || true
-sudo rm -rf /home/ubuntu/.cache/neuron/* || true
-
+echo "Ensuring cache directory has correct permissions..."
+sudo mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
+sudo chown -R ubuntu:ubuntu /home/ubuntu/.cache
+sudo chmod -R 777 /home/ubuntu/.cache
 
 # Dynamic device mapping on the host
 DEVICES=""
@@ -166,7 +182,8 @@ docker run -d --name vllm-server \\
   -e VLLM_ENGINE_READY_TIMEOUT_S=1800 \\
   -e VLLM_ENGINE_ITERATION_TIMEOUT_S=1800 \\
   -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/neuron-compile-cache:/var/tmp/neuron-compile-cache \\
+  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
+  -v /home/ubuntu/.cache/neuron:/var/tmp/neuron-compile-cache \\
   -v /home/ubuntu/apply_all_patches.py:/apply_all_patches.py \\
   -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
@@ -174,6 +191,9 @@ docker run -d --name vllm-server \\
 """
 
     host_commands = [
+        f"cat << 'OUTER_EOF' > /home/ubuntu/mount_volume.sh\n{mount_sh}\nOUTER_EOF",
+        "chmod +x /home/ubuntu/mount_volume.sh",
+        "sudo bash /home/ubuntu/mount_volume.sh",
         f"echo '{apply_all_patches_b64}' | base64 -d | gunzip > /home/ubuntu/apply_all_patches.py",
         f"cat << 'OUTER_EOF' > /home/ubuntu/patch_and_run.sh\n{container_script}\nOUTER_EOF",
         "chmod +x /home/ubuntu/patch_and_run.sh",
