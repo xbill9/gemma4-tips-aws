@@ -1,0 +1,120 @@
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/processing_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/processing_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/model_executor/models/gemma3_mm.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/vllm/multimodal/processing/context.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/transformers/models/gemma3/modeling_gemma3.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/block_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Target not found in /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py
+Patch already applied to /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py
+Starting vLLM Server...
+INFO 06-26 13:58:50 [__init__.py:43] Available plugins for group vllm.platform_plugins:
+INFO 06-26 13:58:50 [__init__.py:45] - neuron -> vllm_neuron:register
+INFO 06-26 13:58:50 [__init__.py:48] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-26 13:58:50 [__init__.py:212] Platform plugin neuron is activated
+INFO 06-26 13:58:54 [importing.py:44] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 06-26 13:58:54 [importing.py:68] Triton not installed or not compatible; certain GPU-related functions will not be available.
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287] 
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287]        █     █     █▄   ▄█
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.16.0
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287]   █▄█▀ █     █     █     █  model   google/gemma-4-12B-it
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:287] 
+(APIServer pid=43) INFO 06-26 13:58:55 [utils.py:223] non-default args: {'host': '0.0.0.0', 'port': 8080, 'model': 'google/gemma-4-12B-it', 'max_model_len': 2048, 'tensor_parallel_size': 2, 'enable_prefix_caching': False, 'max_num_batched_tokens': 1024, 'max_num_seqs': 2, 'async_scheduling': True}
+(APIServer pid=43) INFO 06-26 13:58:56 [model.py:529] Resolved architecture: Gemma4UnifiedForConditionalGeneration
+(APIServer pid=43) INFO 06-26 13:58:56 [scheduler.py:224] Chunked prefill is enabled with max_num_batched_tokens=1024.
+(APIServer pid=43) INFO 06-26 13:58:56 [vllm.py:689] Asynchronous scheduling is enabled.
+(APIServer pid=43) WARNING 06-26 13:58:56 [interface.py:225] Failed to import from vllm._C: ImportError('libcuda.so.1: cannot open shared object file: No such file or directory')
+(APIServer pid=43) Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+INFO 06-26 13:59:12 [__init__.py:43] Available plugins for group vllm.platform_plugins:
+INFO 06-26 13:59:12 [__init__.py:45] - neuron -> vllm_neuron:register
+INFO 06-26 13:59:12 [__init__.py:48] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-26 13:59:12 [__init__.py:212] Platform plugin neuron is activated
+INFO 06-26 13:59:15 [importing.py:44] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 06-26 13:59:15 [importing.py:68] Triton not installed or not compatible; certain GPU-related functions will not be available.
+(EngineCore_DP0 pid=177) INFO 06-26 13:59:16 [core.py:97] Initializing a V1 LLM engine (v0.16.0) with config: model='google/gemma-4-12B-it', speculative_config=None, tokenizer='google/gemma-4-12B-it', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=2048, download_dir=None, load_format=auto, tensor_parallel_size=2, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=True, quantization=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cpu, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=google/gemma-4-12B-it, enable_prefix_caching=False, enable_chunked_prefill=False, pooler_config=None, compilation_config={'level': None, 'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'splitting_ops': ['vllm::unified_attention', 'vllm::unified_attention_with_output', 'vllm::unified_mla_attention', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update'], 'compile_mm_encoder': False, 'compile_sizes': None, 'compile_ranges_split_points': [1024], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': None, 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'eliminate_noops': True, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': None, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}
+(EngineCore_DP0 pid=177) WARNING 06-26 13:59:16 [interface.py:225] Failed to import from vllm._C: ImportError('libcuda.so.1: cannot open shared object file: No such file or directory')
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed/modules/moe/blockwise.py:100: DeprecationWarning: torch_neuronx.nki_jit is deprecated, use nki.jit instead.
+(EngineCore_DP0 pid=177)   component, error = import_nki(config)
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed/modules/moe/blockwise.py:102: UserWarning: Warning: Failed to import blockwise_mm_baseline_shard_hidden: No module named 'neuronxcc.nki._private.blockwise_mm'
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed/modules/moe/blockwise.py:102: UserWarning: Warning: Failed to import blockwise_mm_bwd: No module named 'neuronxcc.nki._private.blockwise_mm_bwd'
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed/modules/moe/blockwise.py:102: UserWarning: Warning: Failed to import blockwise_mm_bwd_baseline_shard_hidden: No module named 'neuronxcc.nki._private.blockwise_mm_bwd'
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py:1: DeprecationWarning: torch_neuronx.nki_jit is deprecated, use nki.jit instead.
+(EngineCore_DP0 pid=177)   from neuronx_distributed_inference.models.dbrx.modeling_dbrx import NeuronDbrxForCausalLM
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py:6: DeprecationWarning: torch_neuronx.nki_jit is deprecated, use nki.jit instead.
+(EngineCore_DP0 pid=177)   from neuronx_distributed_inference.models.mixtral.modeling_mixtral import NeuronMixtralForCausalLM
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py:14: DeprecationWarning: torch_neuronx.nki_jit is deprecated, use nki.jit instead.
+(EngineCore_DP0 pid=177)   from neuronx_distributed_inference.models.qwen3_moe.modeling_qwen3_moe import NeuronQwen3MoeForCausalLM
+(EngineCore_DP0 pid=177) INFO 06-26 13:59:22 [parallel_state.py:1234] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://172.17.0.2:54273 backend=gloo
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+(EngineCore_DP0 pid=177) INFO 06-26 13:59:22 [parallel_state.py:1445] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A
+(EngineCore_DP0 pid=177) You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.748: I neuronx_distributed/parallel_layers/parallel_state.py:638] > initializing tensor model parallel with size 2
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:639] > initializing pipeline model parallel with size 1
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:640] > initializing context model parallel with size 1
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:641] > initializing data parallel with size 1
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:642] > initializing world size to 2
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:387] [rank_0_pp-1_tp-1_dp-1_cp-1] Chosen Logic for replica groups ret_logic=<PG_Group_Logic.LOGIC1: (<function ascending_ring_PG_group at 0x771a47769da0>, 'Ascending Ring PG Group')>
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:666] [rank_0_pp-1_tp-1_dp-1_cp-1] tp_groups: replica_groups.tp_groups=[[0, 1]]
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:667] [rank_0_pp-1_tp-1_dp-1_cp-1] dp_groups: replica_groups.dp_groups=[[0], [1]]
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:668] [rank_0_pp-1_tp-1_dp-1_cp-1] pp_groups: replica_groups.pp_groups=[[0], [1]]
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:669] [rank_0_pp-1_tp-1_dp-1_cp-1] cp_groups: replica_groups.cp_groups=[[0], [1]]
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:670] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_model_groups: replica_groups.ep_model_groups=[[0], [1]]
+(EngineCore_DP0 pid=177) [2026-06-26 14:01:31.749: I neuronx_distributed/parallel_layers/parallel_state.py:671] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_data_groups: replica_groups.ep_data_groups=[[0], [1]]
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/neuronx_distributed/parallel_layers/layers.py:531: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+(EngineCore_DP0 pid=177)   with torch.cuda.amp.autocast(enabled=False):
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=1, shape=torch.Size([1, 128]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=5, shape=torch.Size([1]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=6, shape=torch.Size([1]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=1, shape=torch.Size([1, 256]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=1, shape=torch.Size([1, 512]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=1, shape=torch.Size([1, 1024]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=1, shape=torch.Size([1, 2048]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=3, shape=torch.Size([2]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=5, shape=torch.Size([2]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/torch_neuronx/xla_impl/hlo_conversion.py:470: UserWarning: Received an input tensor that was unused or used in a non-static way when traced so the tensor will be ignored. (index=6, shape=torch.Size([2]), dtype=torch.int32). The non-static usage could happen when the traced function expects the input tensor's shape to change (i.e., using the shape to do index slicing), which is not allowed by inference trace expecting static input shapes.
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/libneuronxla/neuron_cc_wrapper.py:287: SyntaxWarning: str format compiler_flags is discouraged as its handling involves repeated joining and splitting, which can easily make mistakes if something is quoted or escaped. Use list[str] instead. Refer to documentation of the Python subprocess module for details.
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:10.000593:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_be6236941552e97d5a7e+ada15cd3/model.neff
+2026-06-26 14:02:10.846812: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:11.399779: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:11.979732: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:12.563478: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:13.117822: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:13.636906: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:14.118121: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:14.600857: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+2026-06-26 14:02:15.069230: W hilo/hlo_passes/neuron_collective_permute_to_all_gather.cc:30] Platform Version: . Defaulting to 32 cores
+(EngineCore_DP0 pid=177) /opt/conda/lib/python3.12/site-packages/libneuronxla/neuron_cc_wrapper.py:249: SyntaxWarning: str format compiler_flags is discouraged as its handling involves repeated joining and splitting, which can easily make mistakes if something is quoted or escaped. Use list[str] instead. Refer to documentation of the Python subprocess module for details.
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:16.000908:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_5e064aa1aa36b5374646+7ff39289/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:17.000370:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_a043afc6af6c7d6eeac2+75499088/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:18.000202:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_821086518225f4f35d8b+b770cf3c/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:18.000789:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_e8a24e75336e07581840+aae89797/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:19.000172:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_2cf2b923ec4f3428414d+d255693e/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:19.000228:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_984c5122a1bd646afbbf+25163265/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:19.000238:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_c0797407449c61a23cb8+c052ed11/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:19.000294:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_96c382a72a9589b176d8+b7e43e95/model.neff
+(EngineCore_DP0 pid=177) 2026-06-26 14:02:19.000337:  177  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_86ed4f1e5765d8d248c4--output truncated--

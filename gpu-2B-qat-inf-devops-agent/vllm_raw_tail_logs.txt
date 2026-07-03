@@ -1,0 +1,51 @@
+=== Raw Log End (50 lines) ===
+2026-Jul-02 19:48:03.0785 239:1899 [0] int nccl_net_ofi_create_plugin(nccl_net_ofi_plugin_t**):376 CCOM WARN NET/OFI aws-ofi-nccl initialization failed
+2026-Jul-02 19:48:03.0788 239:1899 [0] ncclResult_t nccl_net_ofi_init(ncclDebugLogger_t):78 CCOM WARN NET/OFI Initializing plugin failed
+2026-Jul-02 19:48:03.0790 239:1899 [0] net_plugin.cc:97 CCOM WARN OFI plugin initNet() failed is EFA enabled?
+2026-Jul-02 19:48:03.0796 239:1899 [0] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jul-02 19:48:03.0798 239:1899 [0] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+2026-Jul-02 19:48:03.0798 239:1900 [1] include/socket.h:281 CCOM WARN Skipping IPv6 loopback address
+(EngineCore_DP0 pid=239) INFO 07-02 19:48:04 [kv_cache_utils.py:819] Overriding num_gpu_blocks=3 with num_gpu_blocks_override=129
+(EngineCore_DP0 pid=239) INFO 07-02 19:48:04 [kv_cache_utils.py:1307] GPU KV cache size: 132,096 tokens
+(EngineCore_DP0 pid=239) INFO 07-02 19:48:04 [kv_cache_utils.py:1312] Maximum concurrency for 1,024 tokens per request: 129.00x
+(EngineCore_DP0 pid=239) INFO 07-02 19:48:04 [core.py:278] init engine (profile, create kv cache, warmup model) took 0.00 seconds
+(EngineCore_DP0 pid=239) WARNING 07-02 19:48:06 [scheduler.py:166] Using custom scheduler class vllm_neuron.core.scheduler.ContinuousBatchingNeuronScheduler. This scheduler interface is not public and compatibility may not be maintained.
+(EngineCore_DP0 pid=239) INFO 07-02 19:48:06 [vllm.py:689] Asynchronous scheduling is enabled.
+(APIServer pid=41) INFO 07-02 19:48:07 [api_server.py:481] Supported tasks: ['generate']
+(APIServer pid=41) INFO 07-02 19:48:07 [parser_manager.py:202] "auto" tool choice has been enabled.
+(APIServer pid=41) WARNING 07-02 19:48:07 [model.py:1350] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'top_k': 64, 'top_p': 0.95}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+(APIServer pid=41) INFO 07-02 19:48:07 [parser_manager.py:202] "auto" tool choice has been enabled.
+(APIServer pid=41) INFO 07-02 19:48:07 [serving.py:188] Warming up chat template processing...
+(APIServer pid=41) INFO 07-02 19:48:08 [hf.py:318] Detected the chat template content format to be 'openai'. You can set `--chat-template-content-format` to override this.
+(APIServer pid=41) INFO 07-02 19:48:08 [serving.py:213] Chat template warmup completed in 1734.5ms
+(APIServer pid=41) INFO 07-02 19:48:09 [parser_manager.py:202] "auto" tool choice has been enabled.
+(APIServer pid=41) INFO 07-02 19:48:09 [api_server.py:486] Starting vLLM API server 0 on http://0.0.0.0:8080
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:38] Available routes are:
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /openapi.json, Methods: HEAD, GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /docs, Methods: HEAD, GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /redoc, Methods: HEAD, GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /load, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /version, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /scale_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /is_scaling_elastic_ep, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /tokenize, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /detokenize, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /inference/v1/generate, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /metrics, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /health, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/models, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /ping, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /ping, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /invocations, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/chat/completions, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/chat/completions/render, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/responses, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/responses/{response_id}, Methods: GET
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/responses/{response_id}/cancel, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/completions, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/completions/render, Methods: POST
+(APIServer pid=41) INFO 07-02 19:48:09 [launcher.py:47] Route: /v1/messages, Methods: POST
+(APIServer pid=41) INFO:     Started server process [41]
+(APIServer pid=41) INFO:     Waiting for application startup.
+(APIServer pid=41) INFO:     Application startup complete.

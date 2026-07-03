@@ -1,0 +1,59 @@
+import boto3
+import os
+
+region = "us-east-1"
+if os.path.exists("active_deployment_region.txt"):
+    with open("active_deployment_region.txt", "r") as f:
+        region = f.read().strip()
+
+creds = {}
+if os.path.exists(".aws_creds"):
+    with open(".aws_creds", "r") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                creds[k] = v
+for k, v in creds.items():
+    os.environ[k] = v
+
+ec2 = boto3.client('ec2', region_name=region)
+ssm = boto3.client('ssm', region_name=region)
+
+resp = ec2.describe_instances(
+    Filters=[
+        {"Name": "tag:Name", "Values": ["inferentia-2b-devops-agent"]},
+        {"Name": "instance-state-name", "Values": ["running"]}
+    ]
+)
+instance_id = resp["Reservations"][0]["Instances"][0]["InstanceId"]
+
+script = '''#!/bin/bash
+docker exec vllm-server python3 -c "
+import os
+
+# Search for shard_children calling locations
+for root, dirs, files in os.walk('/opt/conda/lib/python3.12/site-packages/neuronx_distributed'):
+    for file in files:
+        if file.endswith('.py'):
+            path = os.path.join(root, file)
+            with open(path, 'r', errors='ignore') as f:
+                content = f.read()
+                if 'shard_children' in content and 'def shard_children' not in content:
+                    print(path)
+"
+'''
+
+resp = ssm.send_command(
+    InstanceIds=[instance_id],
+    DocumentName="AWS-RunShellScript",
+    Parameters={"commands": [script]}
+)
+command_id = resp['Command']['CommandId']
+import time
+time.sleep(3)
+out = ssm.get_command_invocation(CommandId=command_id, InstanceId=instance_id)
+print("STATUS:", out.get('Status'))
+print("STDOUT:")
+print(out.get('StandardOutputContent'))
+print("STDERR:")
+print(out.get('StandardErrorContent'))

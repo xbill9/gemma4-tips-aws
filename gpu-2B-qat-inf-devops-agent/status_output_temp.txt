@@ -1,0 +1,214 @@
+CONTAINER ID   IMAGE                                                                                             COMMAND                  CREATED          STATUS         PORTS                                                   NAMES
+6d1b5f5a6c5c   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04   "python /usr/local/b…"   36 minutes ago   Up 3 minutes   0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 8081/tcp   vllm-server
+(EngineCore_DP0 pid=216) 2026-06-27 01:55:49.000064:  216  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_0ed7792831a4ecfd2ebf+2056f06b/model.neff
+(EngineCore_DP0 pid=216) 2026-06-27 01:55:49.000072:  216  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_a7e04fc5db6c1b0240be+4f295ef7/model.neff
+(EngineCore_DP0 pid=216) 2026-06-27 01:55:49.000086:  216  [INFO]: Using a cached neff at /var/tmp/neuron-compile-cache/neuronxcc-2.25.3371.0+f524f7f8/MODULE_b397c213bb0ab057b808+5d638b62/model.neff
+.......
+Compiler status PASS
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:638] > initializing tensor model parallel with size 2
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:639] > initializing pipeline model parallel with size 1
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:640] > initializing context model parallel with size 1
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:641] > initializing data parallel with size 1
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:642] > initializing world size to 2
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.457: I neuronx_distributed/parallel_layers/parallel_state.py:387] [rank_0_pp-1_tp-1_dp-1_cp-1] Chosen Logic for replica groups ret_logic=<PG_Group_Logic.LOGIC1: (<function ascending_ring_PG_group at 0x7a25f4b6f9c0>, 'Ascending Ring PG Group')>
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:666] [rank_0_pp-1_tp-1_dp-1_cp-1] tp_groups: replica_groups.tp_groups=[[0, 1]]
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:667] [rank_0_pp-1_tp-1_dp-1_cp-1] dp_groups: replica_groups.dp_groups=[[0], [1]]
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:668] [rank_0_pp-1_tp-1_dp-1_cp-1] pp_groups: replica_groups.pp_groups=[[0], [1]]
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:669] [rank_0_pp-1_tp-1_dp-1_cp-1] cp_groups: replica_groups.cp_groups=[[0], [1]]
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:670] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_model_groups: replica_groups.ep_model_groups=[[0], [1]]
+(EngineCore_DP0 pid=216) [2026-06-27 01:58:06.458: I neuronx_distributed/parallel_layers/parallel_state.py:671] [rank_0_pp-1_tp-1_dp-1_cp-1] ep_data_groups: replica_groups.ep_data_groups=[[0], [1]]
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006] EngineCore failed to start.
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006] Traceback (most recent call last):
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 996, in run_engine_core
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     engine_core = EngineCoreProc(*args, engine_index=dp_rank, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 740, in __init__
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     super().__init__(
+(EngineCore_DP0 pid=216) Process EngineCore_DP0:
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 106, in __init__
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.model_executor = executor_class(vllm_config)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/abstract.py", line 103, in __init__
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self._init_executor()
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/uniproc_executor.py", line 48, in _init_executor
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.driver_worker.load_model()
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/vllm/vllm_neuron/worker/neuron_worker.py", line 155, in load_model
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.model_runner.load_model()
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 532, in load_model
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.model = get_neuron_model(
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]                  ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 1079, in get_neuron_model
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     model.load_weights(
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 601, in load_weights
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self._compile_and_load_model(
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 271, in _compile_and_load_model
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.model.load(compiled_path)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/application_base.py", line 329, in load
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     self.load_weights(
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/application_base.py", line 406, in load_weights
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     weights = self.get_builder().shard_checkpoint()
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/model_builder.py", line 849, in shard_checkpoint
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     preprocess_checkpoint(model, checkpoint)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 634, in preprocess_checkpoint
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     invoke_preshard_hook(model, checkpoint, "")
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   [Previous line repeated 1 more time]
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 727, in invoke_preshard_hook
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     module.preshard_hook(checkpoint, prefix + "weight")
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py", line 757, in preshard_hook
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     v_proj_weight, v_proj_scale, v_proj_input_scale = self.get_weight(
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]                                                       ^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py", line 651, in get_weight
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]     weight = model_state_dict[f"{prefix}.{layer_name}.weight"]
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006]              ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) ERROR 06-27 01:58:07 [core.py:1006] KeyError: 'layers.5.self_attn.qkv_proj.v_proj.weight'
+(EngineCore_DP0 pid=216) Traceback (most recent call last):
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(EngineCore_DP0 pid=216)     self.run()
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/multiprocessing/process.py", line 108, in run
+(EngineCore_DP0 pid=216)     self._target(*self._args, **self._kwargs)
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 1010, in run_engine_core
+(EngineCore_DP0 pid=216)     raise e
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 996, in run_engine_core
+(EngineCore_DP0 pid=216)     engine_core = EngineCoreProc(*args, engine_index=dp_rank, **kwargs)
+(EngineCore_DP0 pid=216)                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 740, in __init__
+(EngineCore_DP0 pid=216)     super().__init__(
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/core.py", line 106, in __init__
+(EngineCore_DP0 pid=216)     self.model_executor = executor_class(vllm_config)
+(EngineCore_DP0 pid=216)                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/abstract.py", line 103, in __init__
+(EngineCore_DP0 pid=216)     self._init_executor()
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/executor/uniproc_executor.py", line 48, in _init_executor
+(EngineCore_DP0 pid=216)     self.driver_worker.load_model()
+(EngineCore_DP0 pid=216)   File "/opt/vllm/vllm_neuron/worker/neuron_worker.py", line 155, in load_model
+(EngineCore_DP0 pid=216)     self.model_runner.load_model()
+(EngineCore_DP0 pid=216)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_runner.py", line 532, in load_model
+(EngineCore_DP0 pid=216)     self.model = get_neuron_model(
+(EngineCore_DP0 pid=216)                  ^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 1079, in get_neuron_model
+(EngineCore_DP0 pid=216)     model.load_weights(
+(EngineCore_DP0 pid=216)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 601, in load_weights
+(EngineCore_DP0 pid=216)     self._compile_and_load_model(
+(EngineCore_DP0 pid=216)   File "/opt/vllm/vllm_neuron/worker/neuronx_distributed_model_loader.py", line 271, in _compile_and_load_model
+(EngineCore_DP0 pid=216)     self.model.load(compiled_path)
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/application_base.py", line 329, in load
+(EngineCore_DP0 pid=216)     self.load_weights(
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/application_base.py", line 406, in load_weights
+(EngineCore_DP0 pid=216)     weights = self.get_builder().shard_checkpoint()
+(EngineCore_DP0 pid=216)               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/model_builder.py", line 849, in shard_checkpoint
+(EngineCore_DP0 pid=216)     preprocess_checkpoint(model, checkpoint)
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 634, in preprocess_checkpoint
+(EngineCore_DP0 pid=216)     invoke_preshard_hook(model, checkpoint, "")
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216)     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216)     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 734, in invoke_preshard_hook
+(EngineCore_DP0 pid=216)     invoke_preshard_hook(child, checkpoint, prefix + name + ".")
+(EngineCore_DP0 pid=216)   [Previous line repeated 1 more time]
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed/trace/trace.py", line 727, in invoke_preshard_hook
+(EngineCore_DP0 pid=216)     module.preshard_hook(checkpoint, prefix + "weight")
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py", line 757, in preshard_hook
+(EngineCore_DP0 pid=216)     v_proj_weight, v_proj_scale, v_proj_input_scale = self.get_weight(
+(EngineCore_DP0 pid=216)                                                       ^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/torch_neuronx/experimental/profiler/v2_x/custom_op_name.py", line 603, in torch_hierarchy_wrapper
+(EngineCore_DP0 pid=216)     return f(*args, **kwargs)
+(EngineCore_DP0 pid=216)            ^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216)   File "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/gqa.py", line 651, in get_weight
+(EngineCore_DP0 pid=216)     weight = model_state_dict[f"{prefix}.{layer_name}.weight"]
+(EngineCore_DP0 pid=216)              ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP0 pid=216) KeyError: 'layers.5.self_attn.qkv_proj.v_proj.weight'
+(APIServer pid=13) Traceback (most recent call last):
+(APIServer pid=13)   File "<frozen runpy>", line 198, in _run_module_as_main
+(APIServer pid=13)   File "<frozen runpy>", line 88, in _run_code
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 531, in <module>
+(APIServer pid=13)     uvloop.run(run_server(args))
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/uvloop/__init__.py", line 96, in run
+(APIServer pid=13)     return __asyncio.run(
+(APIServer pid=13)            ^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/asyncio/runners.py", line 195, in run
+(APIServer pid=13)     return runner.run(main)
+(APIServer pid=13)            ^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/asyncio/runners.py", line 118, in run
+(APIServer pid=13)     return self._loop.run_until_complete(task)
+(APIServer pid=13)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/uvloop/__init__.py", line 48, in wrapper
+(APIServer pid=13)     return await main
+(APIServer pid=13)            ^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 457, in run_server
+(APIServer pid=13)     await run_server_worker(listen_address, sock, args, **uvicorn_kwargs)
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 476, in run_server_worker
+(APIServer pid=13)     async with build_async_engine_client(
+(APIServer pid=13)                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/contextlib.py", line 210, in __aenter__
+(APIServer pid=13)     return await anext(self.gen)
+(APIServer pid=13)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 96, in build_async_engine_client
+(APIServer pid=13)     async with build_async_engine_client_from_engine_args(
+(APIServer pid=13)                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/contextlib.py", line 210, in __aenter__
+(APIServer pid=13)     return await anext(self.gen)
+(APIServer pid=13)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 137, in build_async_engine_client_from_engine_args
+(APIServer pid=13)     async_llm = AsyncLLM.from_vllm_config(
+(APIServer pid=13)                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/async_llm.py", line 222, in from_vllm_config
+(APIServer pid=13)     return cls(
+(APIServer pid=13)            ^^^^
+(APIServer pid=13)   File "/opt/conda/lib/python3.12/site-packages/vllm/v1/engine/async_llm.py", line 148, in __init__
+(APIServer pid=13)     self.engine_core = EngineC--output truncated--
+=== STDERR ===
