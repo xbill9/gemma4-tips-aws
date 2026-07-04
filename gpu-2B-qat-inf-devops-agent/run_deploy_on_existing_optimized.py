@@ -119,8 +119,8 @@ python3 -m vllm.entrypoints.openai.api_server \
   --kv-cache-dtype auto \
   --enable-auto-tool-choice \
   --tool-call-parser functiongemma \
-  --async-scheduling \
   --limit-mm-per-prompt '{"image": 0, "audio": 0}' \
+  --additional-config '{"override_neuron_config": {"on_device_sampling_config": null}}' \
   --host 0.0.0.0 \
   --port 8080
 """

@@ -28,7 +28,11 @@ resp = ec2.describe_instances(
 instance_id = resp["Reservations"][0]["Instances"][0]["InstanceId"]
 
 script = '''#!/bin/bash
-docker logs vllm-server 2>&1
+docker logs vllm-server > /home/ubuntu/vllm_temp.log 2>&1
+echo "=== FILTERED LAST 80 LINES ==="
+grep -v -E "UserWarning|warnings.warn|Some weights|were not initialized|'model.layers|STATE DICT|DEBUG STATE|embed_tokens_per_layer|per_layer_input_gate|per_layer_projection" /home/ubuntu/vllm_temp.log | tail -n 80
+echo "=== ABSOLUTE LAST 30 LINES ==="
+tail -n 30 /home/ubuntu/vllm_temp.log
 '''
 
 resp = ssm.send_command(

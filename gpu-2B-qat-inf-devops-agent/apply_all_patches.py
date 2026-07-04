@@ -268,12 +268,14 @@ gemma3_attn_init_repl = '''class NeuronGemma3Attention(NeuronAttentionBase):
             head_dim = getattr(config, "global_head_dim", 512)
         self.is_sliding_window_attention = config.sliding_window is not None and (layer_idx is None or (layer_idx + 1) % 5 != 0)
         self.layer_idx = layer_idx
-        # Gemma4 KV sharing: layers >= 15 reuse K/V states of the last non-shared
-        # layer of the same type (13 = sliding, 14 = full). Static at trace time.
+        # Gemma4 KV sharing per spec: virtual layers >= 20 reuse K/V states of the
+        # last non-shared layer of the same type (18 = sliding, 19 = full).
+        # Static at trace time. NOTE: 15 is the double-wide-MLP boundary, NOT the
+        # KV-sharing boundary — do not conflate them.
         _is_swa = layer_idx is None or (layer_idx + 1) % 5 != 0
         self.gemma4_layer_type = "sliding" if _is_swa else "full"
-        self.gemma4_shared_kv = layer_idx is not None and layer_idx >= 15
-        self.gemma4_store_kv = layer_idx in (13, 14)
+        self.gemma4_shared_kv = layer_idx is not None and layer_idx >= 20
+        self.gemma4_store_kv = layer_idx in (18, 19)
         self.gemma4_v_norm = not self.gemma4_shared_kv
         self.gemma4_rms_eps = config.rms_norm_eps'''
 
@@ -347,13 +349,12 @@ patch_file(
     gemma3_super_init_repl
 )
 
-# 2f3. Gemma4 applies q_norm/k_norm (pre-RoPE); vendor gemma3 loads the weights but
-# never applies them with use_qk_norm=False.
-patch_file(
-    '/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py',
-    '''            use_qk_norm=False,''',
-    '''            use_qk_norm=True,'''
-)
+# 2f3 (REVERTED): use_qk_norm must stay False. Setting it True makes NeuronAttentionBase
+# create its own FUSED qk_norm over the flattened heads (shape [num_heads*head_dim]),
+# lazily on first forward — which fails tracing with "Unexpected new/changed parameters
+# after trace" and is the wrong op for Gemma anyway (Gemma norms per-head over head_dim).
+# Instead, the vendor gemma3 q_layernorm/k_layernorm (weights already loaded from the
+# checkpoint) are applied explicitly pre-RoPE inside the apply_rotary_embedding patch below.
 
 # 2f4. Gemma4 checkpoints store full RMSNorm weights (e.g. input_layernorm mean ~10.7),
 # unlike Gemma3 which stores zero-centered weights. Remove every +1.0 offset the
@@ -566,6 +567,16 @@ if os.path.exists(attention_base_file):
                 cos_cache, sin_cache = self.rotary_emb(V, position_ids)
             Q, K = apply_rotary_pos_emb(Q, K, cos_cache, sin_cache)'''
     repl_rope = '''    def apply_rotary_embedding(self, Q, K, V, position_ids, cos_cache, sin_cache, use_polar_compatible_rope):
+        # Gemma4: per-head q/k RMSNorm applied pre-RoPE. Done here rather than via
+        # use_qk_norm=True because the base class's fused qk_norm materializes lazily
+        # after trace (ValueError: Unexpected new/changed parameters) and normalizes
+        # over the flattened heads instead of per-head head_dim.
+        _q_ln = getattr(self, "q_layernorm", None)
+        _k_ln = getattr(self, "k_layernorm", None)
+        if _q_ln is not None:
+            Q = _q_ln(Q)
+        if _k_ln is not None:
+            K = _k_ln(K)
         if not use_polar_compatible_rope and self.rotary_emb is not None:
             if cos_cache is None or sin_cache is None:
                 cos_cache, sin_cache = self.rotary_emb(V, position_ids)
@@ -625,8 +636,8 @@ if os.path.exists(attention_base_file):
             _vf = V.to(torch.float32)
             _vms = _vf.pow(2).mean(-1, keepdim=True) + getattr(self, "gemma4_rms_eps", 1e-6)
             V = (_vf * torch.pow(_vms, -0.5)).to(V.dtype)
-        # Gemma4 KV sharing: source layers (13 sliding / 14 full) stash post-RoPE K/V;
-        # shared layers (>= 15) discard their own K/V and reuse the stash. The stash is
+        # Gemma4 KV sharing: source layers (18 sliding / 19 full) stash post-RoPE K/V;
+        # virtual layers (>= 20) discard their own K/V and reuse the stash. The stash is
         # plain tensor plumbing within one forward pass, so it bakes into the traced graph.
         _gemma4_stash = globals().setdefault("_GEMMA4_KV_STASH", {})
         if getattr(self, "gemma4_store_kv", False):
@@ -641,21 +652,12 @@ if os.path.exists(attention_base_file):
         return Q, K, V, cos_cache, sin_cache, residual'''
     patch_file(attention_base_file, target_prep, repl_prep)
 
-    # Patch: enforce sliding-window mask during token generation (merged from patch_swa_mask.py,
-    # which previously had to be applied by hand and was lost on every container rebuild)
-    target_swa_mask = '''        # pad the attention mask if the KV cache is padded
-        if prior_scores.shape[-1] > attention_mask.shape[-1] and self.neuron_config.apply_seq_ids_mask:
-            attention_mask = F.pad(attention_mask, (0, prior_scores.shape[-1] - attention_mask.shape[-1]), "constant", 0)'''
-    repl_swa_mask = target_swa_mask + '''
-
-        if getattr(self, "sliding_window", None) is not None:
-            seq_len = prior_scores.shape[-1]
-            batch_size = prior_scores.shape[0]
-            idx = torch.arange(seq_len, device=prior_scores.device, dtype=position_ids.dtype).view(1, 1, 1, seq_len)
-            pos = position_ids.view(batch_size, 1, 1, 1)
-            swa_mask = idx >= (pos - self.sliding_window + 1)
-            attention_mask = attention_mask & swa_mask'''
-    patch_file(attention_base_file, target_swa_mask, repl_swa_mask)
+    # REMOVED (formerly merged from patch_swa_mask.py): a token-gen sliding-window mask
+    # that indexed the KV cache linearly (idx >= pos - window + 1). The SWA caches are
+    # ring buffers (positions written modulo sliding_window), so the linear mask kept
+    # stale entries and dropped the newest once pos > window, and went all-false past
+    # 2*window-1 (softmax over all -inf -> NaN logits). The wrapped cache already holds
+    # only the last window, so no extra mask is needed in compute_for_token_gen.
 
     # Patch 12: Trim KV cache prior tensors back to true head_dim for token generation warmup crash
     target_token_gen = '''        if getattr(self, "head_dim", 0) == 256:
@@ -759,10 +761,7 @@ if os.path.exists(attention_base_file):
         QK = torch.matmul(Q, K.transpose(2, 3)) / self.softmax_scale'''
     repl_scaled_qk = '''    def scaled_qk(self, Q, K, attention_mask):
         QK = torch.matmul(Q, K.transpose(2, 3)) / self.softmax_scale
-        softcap = getattr(self.config, "attn_logit_softcapping", None) or getattr(self.config, "attention_logit_cap", None) or 50.0
-        import sys
-        sys.stderr.write(f"SCALED_QK_DEBUG: softmax_scale={self.softmax_scale}, softcap={softcap}, Q.shape={list(Q.shape)}, K.shape={list(K.shape)}\\n")
-        sys.stderr.flush()
+        softcap = getattr(self.config, "attn_logit_softcapping", None)
         if softcap is not None:
             QK = torch.tanh(QK / softcap) * softcap
         if attention_mask is not None:
@@ -785,7 +784,7 @@ if os.path.exists(attention_base_file):
             if not self.k_cache_transposed:
                 K_prior = K_prior.transpose(2, 3)
             prior_scores = torch.matmul(Q, K_prior) / self.softmax_scale
-            softcap = getattr(self.config, "attn_logit_softcapping", None) or getattr(self.config, "attention_logit_cap", None) or 50.0
+            softcap = getattr(self.config, "attn_logit_softcapping", None)
             if softcap is not None:
                 prior_scores = torch.tanh(prior_scores / softcap) * softcap
             prior_scores = prior_scores.to(torch.float32)
@@ -805,7 +804,7 @@ if os.path.exists(attention_base_file):
     repl_token_gen_softcap = '''        if not self.k_cache_transposed:
             K_prior = K_prior.transpose(2, 3)
         prior_scores = torch.matmul(Q, K_prior) / self.softmax_scale
-        softcap = getattr(self.config, "attn_logit_softcapping", None) or getattr(self.config, "attention_logit_cap", None) or 50.0
+        softcap = getattr(self.config, "attn_logit_softcapping", None)
         if softcap is not None:
             prior_scores = torch.tanh(prior_scores / softcap) * softcap
 
@@ -822,7 +821,7 @@ if os.path.exists(attention_base_file):
         K_active = repeat_kv(K, active_repeat)
         V_active = repeat_kv(V, active_repeat)
         active_scores = torch.matmul(Q, K_active.transpose(2, 3)) / self.softmax_scale
-        softcap = getattr(self.config, "attn_logit_softcapping", None) or getattr(self.config, "attention_logit_cap", None) or 50.0
+        softcap = getattr(self.config, "attn_logit_softcapping", None)
         if softcap is not None:
             active_scores = torch.tanh(active_scores / softcap) * softcap'''
     patch_file(attention_base_file, target_token_gen_active_softcap, repl_token_gen_active_softcap)
@@ -860,7 +859,7 @@ if os.path.exists(attention_base_file):
         K_active = repeat_kv(K, n_repeat)
         V_active = repeat_kv(V, n_repeat)
         active_scores = torch.matmul(Q, K_active.transpose(2, 3)) / self.softmax_scale
-        softcap = getattr(self.config, "attn_logit_softcapping", None) or getattr(self.config, "attention_logit_cap", None) or 50.0
+        softcap = getattr(self.config, "attn_logit_softcapping", None)
         if softcap is not None:
             active_scores = torch.tanh(active_scores / softcap) * softcap
         active_scores = active_scores.to(torch.float32)
@@ -1146,11 +1145,7 @@ if os.path.exists(trace_file):
             stride = getattr(module_parameter, "partition_stride", getattr(tensor, "partition_stride", 1))
             num_partitions = getattr(module_parameter, "num_partitions", getattr(tensor, "num_partitions", 2))
             per_partition_size = tensor.shape[partition_dim] // num_partitions
-            partition_rank = rank % num_partitions
-            if "layers.30.mlp.gate_proj" in parameter_name or "layers.15.mlp.gate_proj" in parameter_name:
-                print(f"[DEBUG_SHARD] param={parameter_name} tensor_shape={list(tensor.shape)} mod_param_shape={list(module_parameter.shape)} num_partitions={num_partitions} per_partition_size={per_partition_size} partition_dim={partition_dim} is_tensor_mp={is_tensor_mp}", flush=True)
-                import traceback
-                traceback.print_stack()'''
+            partition_rank = rank % num_partitions'''
     patch_file(trace_file, trace_sharding_target, trace_sharding_repl)
 
 # 20c. Patch trace.py to automatically pad checkpoint shape mismatches for hybrid attention head_dims
@@ -1161,12 +1156,21 @@ if os.path.exists(trace_file):
             src_tensor = checkpoint[parameter_name]
             tgt_shape = list(module_parameter.shape)
             src_shape = list(src_tensor.shape)
-            if len(tgt_shape) == len(src_shape):
+            # Only the hybrid-head-dim K/V pad (256 -> 512 on the last dim) is a known,
+            # legitimate mismatch. Anything else means the weight mapping is wrong;
+            # zero-filling it would silently corrupt the model (degenerate logits).
+            is_kv_headdim_pad = (
+                len(tgt_shape) == len(src_shape)
+                and tgt_shape[:-1] == src_shape[:-1]
+                and src_shape[-1] < tgt_shape[-1]
+                and ("k_proj" in parameter_name or "v_proj" in parameter_name)
+            )
+            if is_kv_headdim_pad:
                 padded_tensor = torch.zeros(tgt_shape, dtype=src_tensor.dtype, device=src_tensor.device)
                 slices = tuple(slice(0, min(t, s)) for t, s in zip(tgt_shape, src_shape))
                 padded_tensor[slices] = src_tensor[slices]
                 checkpoint[parameter_name] = padded_tensor
-                print(f"[PATCH] Auto-padded mismatch for {parameter_name} from {src_shape} to {tgt_shape}", flush=True)
+                print(f"[PATCH] Padded KV head_dim for {parameter_name} from {src_shape} to {tgt_shape}", flush=True)
             else:
                 raise RuntimeError(f"expected shape {module_parameter.shape} for {parameter_name} but found {checkpoint[parameter_name].shape}")'''
     patch_file(trace_file, trace_shape_target, trace_shape_repl)
@@ -1749,8 +1753,10 @@ if os.path.exists(kv_mgr_file):
     # Prevents 1006 OOB in context_encoding_model NEFF (_bk0, _bk1) when
     # prefill bucket_length > SWA cache max_sequence_length (sliding_window).
     # DynamicUpdateSlice requires update.shape[i] <= tensor.shape[i] for all dims.
+    # Keep the LAST window (most recent tokens) — a sliding-window cache must hold
+    # the newest KV, and update_kv_by_layer_id uses the same [-window:] convention.
     if prefix_cache.ndim >= 3 and prefix_cache.shape[-2] > cache.shape[-2]:
-        prefix_cache = prefix_cache[..., :cache.shape[-2], :]
+        prefix_cache = prefix_cache[..., -cache.shape[-2]:, :]
     if cpu_mode():'''
     patch_file(utils_file, utils_fill_target, utils_fill_repl)
 
@@ -1883,13 +1889,13 @@ if os.path.exists(vllm_serving_file):
             layer_outputs = decoder_layer('''
         patch_file(model_base_file, loop_target, loop_repl)
 
-        # Patch 36: Gemma4 KV sharing (prior context) — shared layers (>= 15) read the
-        # KV cache slot of their source layer (13 = sliding, 14 = full). idx is a Python
+        # Patch 36: Gemma4 KV sharing (prior context) — virtual layers (>= 20) read the
+        # KV cache slot of their source layer (18 = sliding, 19 = full). idx is a Python
         # int at trace time, so the redirect bakes statically into the compiled graph.
         loop_target2 = '''            past_key_value = past_key_values[idx] if past_key_values is not None else None'''
         loop_repl2 = '''            _gemma4_src_idx = idx
-            if idx >= 15:
-                _gemma4_src_idx = 13 if (idx + 1) % 5 != 0 else 14
+            if idx >= 20:
+                _gemma4_src_idx = 18 if (idx + 1) % 5 != 0 else 19
             if past_key_values is not None and _gemma4_src_idx < len(past_key_values):
                 past_key_value = past_key_values[_gemma4_src_idx]
             else:
@@ -2160,23 +2166,28 @@ if os.path.exists(vllm_serving_file):
         # 39g. Patch convert_hf_to_neuron_state_dict to map PLE weights
         gemma3_state_dict_target = '''        state_dict = {k.removeprefix("model."): v for k, v in state_dict.items()}
         neuron_config = config.neuron_config'''
-        gemma3_state_dict_repl = '''        # Dynamically inject PLE keys from local model.safetensors to bypass HF filtering
-        try:
-            import glob
-            from safetensors import safe_open
-            snap_dirs = glob.glob('/root/.cache/huggingface/hub/models--google--gemma-4-E2B-it/snapshots/*')
-            if snap_dirs:
-                safetensors_file = glob.glob(snap_dirs[0] + "/*.safetensors")[0]
-                print(f"LOADING PLE KEYS FROM {safetensors_file}...")
-                with safe_open(safetensors_file, framework="pt", device="cpu") as sf:
-                    for k in sf.keys():
-                        if "per_layer" in k or "embed_tokens_per_layer" in k or "layer_scalar" in k:
-                            state_dict[k] = sf.get_tensor(k)
-                print(f"SUCCESSFULLY LOADED PLE KEYS. TOTAL KEYS NOW: {len(state_dict)}")
-            else:
-                print("WARNING: NO SNAPSHOT DIRECTORY FOUND FOR PLE KEY INJECTION!")
-        except Exception as e:
-            print(f"ERROR DURING PLE KEY INJECTION: {e}")
+        gemma3_state_dict_repl = '''        # Inject PLE keys from ALL local safetensors shards (HF loading filters them out).
+        # Reads every shard — a multi-shard checkpoint spreads PLE tensors across files —
+        # and fails hard if the config expects PLE but no keys were found: serving with
+        # randomly initialized PLE gates silently corrupts every layer's hidden states.
+        import glob
+        from safetensors import safe_open
+        _ple_files = sorted(glob.glob('/root/.cache/huggingface/hub/models--google--gemma-4-E2B*/snapshots/*/*.safetensors'))
+        _ple_count = 0
+        for _ple_file in _ple_files:
+            with safe_open(_ple_file, framework="pt", device="cpu") as sf:
+                for k in sf.keys():
+                    if "per_layer" in k or "embed_tokens_per_layer" in k or "layer_scalar" in k:
+                        state_dict[k] = sf.get_tensor(k)
+                        _ple_count += 1
+        print(f"PLE key injection: {_ple_count} keys from {len(_ple_files)} shard(s)")
+        _ple_expected = getattr(config, "hidden_size_per_layer_input", None) is not None
+        if _ple_expected and _ple_count == 0:
+            raise RuntimeError(
+                f"PLE key injection found 0 keys across {len(_ple_files)} safetensors shard(s) "
+                "but the config declares hidden_size_per_layer_input; refusing to serve with "
+                "randomly initialized PLE weights"
+            )
 
         # Remove both model. and model.language_model. / language_model. prefixes
         new_state_dict = {}
