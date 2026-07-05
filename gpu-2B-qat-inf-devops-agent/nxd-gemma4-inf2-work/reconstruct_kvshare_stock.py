@@ -16,7 +16,7 @@ res={}
 # A) decoder layer: pass layer_idx to attention + set gemma4 KV-share flags on it
 g=open(G).read()
 oA="        self.self_attn = NeuronGemma3Attention(config)"
-nA=('        self.self_attn = NeuronGemma3Attention(config, layer_idx=layer_idx)\n'
+nA=('        self.self_attn = NeuronGemma3Attention(config)\n'
     '        _a = self.self_attn\n'
     '        _a.gemma4_layer_type = "sliding" if (config.sliding_window is not None and (layer_idx is None or (layer_idx + 1) % 5 != 0)) else "full"\n'
     '        _nkvs = getattr(config, "num_kv_shared_layers", 0) or 0\n'
