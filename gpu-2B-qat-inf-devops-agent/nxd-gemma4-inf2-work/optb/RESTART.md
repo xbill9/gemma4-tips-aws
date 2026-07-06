@@ -72,6 +72,30 @@ KV_MAX=256 KV_BUCKET=64 KV_PRE_OUT=/workspace/kv_pre_big.pt KV_DEC_OUT=/workspac
   python /workspace/optb_kv.py trace
 ```
 
+## S3 backup (secondary, in addition to the AMI)
+Made 2026-07-06 to `s3://xbill-gemma4-patches-2b/optb-backup/` (29 objects, 32 GiB):
+- `neffs/` — kv_pre_neff.pt+kv_dec_neff.pt (128/32), kv_pre_big.pt+kv_dec_big.pt (256/64), optb_neff.pt, optb_gen_neff.pt
+- `model/real-gemma4-E2B-it/` — real 5.12B checkpoint
+- `scripts/optb_*.py`, `MANIFEST.txt`
+
+Restore onto a fresh box WITHOUT the AMI (e.g. plain Neuron DLAMI):
+```bash
+export PATH=/opt/aws_neuronx_venv_pytorch_2_8/bin:$PATH
+pip install transformers==5.13.0
+mkdir -p /workspace && cd /workspace
+aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/neffs/  /workspace/
+aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/scripts/ /workspace/
+aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/model/real-gemma4-E2B-it /workspace/real-gemma4-E2B-it
+# then start optb_server.py as above
+```
+(Box role has AmazonS3FullAccess as of 2026-07-06.)
+
+## Capacity note (2026-07-06)
+inf2.8xlarge was unfulfillable on **both spot and on-demand across all us-east-1 AZs** that evening.
+For spot, launch via EC2 Fleet `gemma4-optb-lt` spanning AZs; if all fail, wait for capacity or retry later.
+First boot from the AMI is slow (~20 min, cold-EBS lazy-load) — optionally enable Fast Snapshot Restore
+on `snap-0149d318c5f36cfb9` to avoid it.
+
 ## Cleanup when fully done
 ```bash
 aws ec2 deregister-image --region us-east-1 --image-id ami-0c13e7feb3fe2e01e
