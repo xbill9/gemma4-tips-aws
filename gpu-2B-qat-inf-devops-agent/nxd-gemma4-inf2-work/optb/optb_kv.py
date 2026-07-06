@@ -6,8 +6,10 @@ import os, sys, time, torch
 torch.manual_seed(0)
 MODE = sys.argv[1] if len(sys.argv) > 1 else "cpu"
 MP = "/workspace/real-gemma4-E2B-it"
-MAX = 128          # max total sequence (buffer length)
-BUCKET = 32        # prefill bucket (right-padded prompt length)
+MAX = int(os.environ.get("KV_MAX", "128"))       # max total sequence (buffer length)
+BUCKET = int(os.environ.get("KV_BUCKET", "32"))  # prefill bucket (right-padded prompt length)
+PRE_OUT = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
+DEC_OUT = os.environ.get("KV_DEC_OUT", "/workspace/kv_dec_neff.pt")
 NEG = torch.finfo(torch.float32).min
 
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration, DynamicCache
@@ -153,7 +155,7 @@ ie, ple = embed_ids(pad); am = torch.tensor([[1]*n0 + [0]*(BUCKET-n0)])
 t = time.time()
 pre_neff = torch_neuronx.trace(pre, (ie, am, ple), compiler_workdir="/workspace/kv_pre_wd",
     compiler_args=["--model-type", "transformer", "--auto-cast", "all", "--auto-cast-type", "bf16"])
-torch.jit.save(pre_neff, "/workspace/kv_pre_neff.pt")
+torch.jit.save(pre_neff, PRE_OUT)
 print("PREFILL_TRACE_DONE secs", round(time.time()-t, 1), flush=True)
 
 key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
@@ -164,7 +166,7 @@ t = time.time()
 dec_neff = torch_neuronx.trace(dec, (ie1, ple1, position_ids, onehot, full_mask, slide_mask, key_bufs, val_bufs),
     compiler_workdir="/workspace/kv_dec_wd",
     compiler_args=["--model-type", "transformer", "--auto-cast", "all", "--auto-cast-type", "bf16"])
-torch.jit.save(dec_neff, "/workspace/kv_dec_neff.pt")
+torch.jit.save(dec_neff, DEC_OUT)
 print("DECODE_TRACE_DONE secs", round(time.time()-t, 1), flush=True)
 
 print("=== CPU greedy ===", flush=True)

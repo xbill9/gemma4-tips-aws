@@ -5,7 +5,11 @@ import os
 os.environ["NEURON_RT_VISIBLE_CORES"] = "0,1"
 import sys, json, time, threading, torch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP = "/workspace/real-gemma4-E2B-it"; MAX = 128; BUCKET = 32
+MP = "/workspace/real-gemma4-E2B-it"
+MAX = int(os.environ.get("KV_MAX", "128"))
+BUCKET = int(os.environ.get("KV_BUCKET", "32"))
+PRE_NEFF = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
+DEC_NEFF = os.environ.get("KV_DEC_OUT", "/workspace/kv_dec_neff.pt")
 NEG = torch.finfo(torch.float32).min
 PORT = int(os.environ.get("PORT", "8080"))
 
@@ -25,8 +29,8 @@ EOS = set(ec) if isinstance(ec, (list, tuple)) else {ec}
 
 print("loading neffs onto NeuronCores (one-time ~86s)...", flush=True)
 t0 = time.time()
-PRE = torch.jit.load("/workspace/kv_pre_neff.pt")
-DEC = torch.jit.load("/workspace/kv_dec_neff.pt")
+PRE = torch.jit.load(PRE_NEFF)
+DEC = torch.jit.load(DEC_NEFF)
 LOCK = threading.Lock()   # one Inferentia device — serialize requests
 
 def embed_ids(id_list):
