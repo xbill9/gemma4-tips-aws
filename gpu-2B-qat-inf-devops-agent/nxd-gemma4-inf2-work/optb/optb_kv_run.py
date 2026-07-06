@@ -59,17 +59,21 @@ for j in range(len(NONSHARED)):
 print("prefill done, first tok", first, repr(tok.decode([first])), "| secs", round(time.time()-t, 1), flush=True)
 
 # ---- decode (loads onto core 1; prefill stays resident on core 0) ----
-t = time.time()
+tl = time.time()
 dec = torch.jit.load("/workspace/kv_dec_neff.pt")
+print("decode neff load secs", round(time.time()-tl, 1), flush=True)
 seq = [first]; cur = n0
+tloop = time.time(); steps = 0
 for _ in range(MAX - n0):
     if seq[-1] in EOS: break
     ie1, ple1 = embed_ids([seq[-1]])
     position_ids, onehot, full_mask, slide_mask = host_pos_tensors(cur)
     lg1, key_bufs, val_bufs = dec(ie1, ple1, position_ids, onehot, full_mask, slide_mask, key_bufs, val_bufs)
-    seq.append(int(lg1[0, 0].argmax())); cur += 1
-ntok = len(seq)
+    seq.append(int(lg1[0, 0].argmax())); cur += 1; steps += 1
+loop_s = time.time() - tloop
 txt = tok.decode([s for s in seq if s not in EOS], skip_special_tokens=True)
 print("DEVICE GEN:", repr(txt), flush=True)
-print("ids", seq, "| decode secs", round(time.time()-t, 1), "| tok/s", round(ntok/(time.time()-t), 1), flush=True)
+print("ids", seq, flush=True)
+print("decode loop", round(loop_s, 2), "s /", steps, "steps =", round(loop_s/max(steps,1)*1000), "ms/tok =",
+      round(steps/loop_s, 1), "tok/s (after one-time neff load)", flush=True)
 print("ALL_DONE", flush=True)

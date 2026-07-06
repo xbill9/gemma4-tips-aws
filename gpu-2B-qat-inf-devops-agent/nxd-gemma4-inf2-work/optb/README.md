@@ -5,6 +5,23 @@ Instead we trace the HuggingFace transformers-5.13 `Gemma4TextModel` forward dir
 KV-sharing via a plain Python dict `shared_kv_states` through the forward → under `torch_neuronx.trace`
 this becomes a LIVE graph tensor dependency (exactly why it works on TPU/XLA).
 
+## Status (2026-07-06) — ✅✅ PROPER KV-CACHE DECODE, FAST (~44 tok/s)
+Two-graph prefill + incremental decode with the KV cache threaded as graph I/O
+(`optb_kv.py` = build/validate, `optb_kv_run.py "<prompt>"` = serve; see optb_kv_result.txt):
+- **PREFILL** graph = the Option B forward, extended to also return the 15 non-shared layers' K/V
+  (shared layers 15-34 never write cache — HF `modeling_gemma4.py:1273`; API is `cache.layers[i].keys/.values`).
+- **DECODE** graph = single-token forward vs a fixed **MAX=128** KV buffer threaded as explicit tensor I/O.
+  Custom `StaticKV.update` = one-hot masked write `buf*(1-oh)+k*oh` (pure arithmetic → trace-safe, unlike
+  DynamicCache's growing `cat`). Position/one-hot/masks precomputed on HOST (no int-index ops in graph);
+  `attention_mask` passed as a **dict** to bypass the fragile `create_causal_mask`. KV-sharing handled by
+  `TextModel.forward`'s `shared_kv_states`.
+- Verified: `DEV GEN 'The capital of France is **Paris**.'`, `SEQ_MATCH True` (bf16 ids == fp32 CPU ids).
+- **Speed: decode ~23 ms/token = ~44 tok/s**; prefill 0.06s (after neff load). "What is Gemma?" → coherent
+  115-token answer. One-time neff load ~86s (load once, serve many).
+- **Two gotchas:** wraps MUST register `self.lang/self.head` as submodules (else tracer won't ship weights →
+  `Input tensor is not an XLA tensor`); compile **bf16** (`--auto-cast all`) — fp32 neffs are 15.4GB and a
+  decode graph overflows a single 16GB core. Load prefill on core 0, decode on core 1 (`NEURON_RT_VISIBLE_CORES=0,1`).
+
 ## Status (2026-07-05) — ✅ COHERENT MULTI-TOKEN GENERATION ON DEVICE
 - Single token: `torch_neuronx.trace` of the text tower **Compiler status PASS**, `DEVICE argmax 818 'The'`, **MATCH True** (maxabs diff vs CPU 7.6e-05). See optb_trace.py.
 - Multi-token: **`DEVICE GEN: 'The capital of France is **Paris**.'`**, `SEQ_MATCH True` — device token ids identical to CPU
