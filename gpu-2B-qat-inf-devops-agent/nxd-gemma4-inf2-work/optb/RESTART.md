@@ -90,6 +90,17 @@ aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/model/real-gemma4-E2B-it /w
 ```
 (Box role has AmazonS3FullAccess as of 2026-07-06.)
 
+## us-east-2 (fallback region — where capacity actually was on 2026-07-06)
+us-east-1 spot inf2.8xlarge was unfulfillable for hours; **us-east-2 had capacity** (and cheaper spot).
+AMI copied cross-region: us-east-1 `ami-0c13e7feb3fe2e01e` → **us-east-2 `ami-0f07bf96d8551d36c`**.
+Current box: spot `i-09d0091339c8a6ee9` (us-east-2c). Launch template `lt-0bca7ea41c9e213e5`
+(`gemma4-optb-lt-e2`, auto-start-server user-data, no key → SSM, default-VPC SG `sg-0f5a179467ec1eb0e`).
+Relaunch spot in us-east-2 (auto-starts server, no manual step):
+```bash
+aws ec2 create-fleet --region us-east-2 --cli-input-json file://fleet_e2.json   # subnets 2a/2b/2c
+```
+ALL us-east-2 commands need `--region us-east-2`. Query: SSM `curl -s -X POST localhost:8080/generate -d '{"prompt":"..."}'`.
+
 ## Capacity note (2026-07-06)
 inf2.8xlarge was unfulfillable on **both spot and on-demand across all us-east-1 AZs** that evening.
 For spot, launch via EC2 Fleet `gemma4-optb-lt` spanning AZs; if all fail, wait for capacity or retry later.
