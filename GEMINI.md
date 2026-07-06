@@ -166,6 +166,25 @@ export GEMINI_MODEL="google/gemma-4-31B-it" # Or google/gemma-4-E2B-it / google/
 ## 🔧 Technical Standards for vLLM & Gemma 4 Tool Calling
 When managing TPU/GPU deployments or customizing vLLM serving, ensure the following vLLM serving parameters are applied for stable Gemma 4 tool integration:
 - **Optimization flags:** `--tensor-parallel-size 8` (TPU v6e-8), `--disable_chunked_mm_input`, `--max-model-len 16384`.
-- **Tool Parsing:** `--enable-auto-tool-choice`, `--tool-call-parser gemma4`, and `--reasoning-parser gemma4` to enable native function calling compatibility.
+- **Tool Parsing:** If supported by the vLLM version, use `--enable-auto-tool-choice`, `--tool-call-parser gemma4`, and `--reasoning-parser gemma4`. For older vLLM versions (like `v0.16.0` on Neuron), fallback to `--tool-call-parser functiongemma` or omit the parser flags if they raise a `KeyError`.
 - **Multimodal configuration:** `--limit-mm-per-prompt '{"image":4,"audio":1}'` and `--max_num_batched_tokens 4096`.
 - **Universal SRE Help:** All agents expose a standardized `get_help` tool providing details on active configuration environment variables and all exposed tools.
+
+> [!IMPORTANT]
+> **AWS Inferentia (`inf2`) Graph Compilation Safeguards:**
+> When serving Gemma 4 models on AWS Inferentia via the Neuron SDK, avoid graph shape mismatches and compilation failures by applying the following launch parameters:
+> 1. **Disable Prefix Caching**: Pass `--no-enable-prefix-caching` (prefix caching causes shape mismatch crashes on trace compilation).
+> 2. **Enable Chunked Prefill**: Pass `--enable-chunked-prefill`.
+> 3. **Set Batch Tokens**: Pass `--max-num-batched-tokens 512` to match the compiled sequence length bucket size, and remove/omit `--block-size 16`.
+
+---
+
+## 🔗 External Resources
+- **[AWS Inferentia](https://aws.amazon.com/ai/machine-learning/inferentia/)**: AWS Inferentia deep learning hardware accelerator for high-performance and cost-effective inference.
+- **[Gemma 4 on AWS Inferentia Cost Guide](https://lushbinary.com/blog/deploy-gemma-4-aws-ec2-sagemaker-inferentia-cost-guide/)**: Comprehensive deployment and cost guide for hosting Gemma 4 on AWS EC2 and SageMaker with Inferentia.
+- **[vLLM AWS Neuron Installation Guide](https://docs.vllm.ai/en/v0.10.1/getting_started/installation/aws_neuron.html)**: Official installation and configuration guide for running vLLM on AWS Neuron devices.
+- **[AWS Neuron Custom Quantization Guide](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/libraries/nxd-inference/developer_guides/custom-quantization.html)**: Developer guide for custom quantization under the AWS Neuron SDK.
+
+
+
+
