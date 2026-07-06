@@ -132,12 +132,15 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(n) or b"{}")
     def do_GET(self):
-        if self.path.rstrip("/") == "/v1/models":
+        p = self.path.rstrip("/")
+        if p == "/v1/models":
             self._send(200, {"object": "list", "data": [{"id": MODEL_NAME, "object": "model", "owned_by": "local-inferentia2"}]})
+        elif p in ("/health", "/ping"):          # vLLM-style liveness
+            self._send(200, {"status": "ok"})
         else:
             self._send(200, {"status": "ok", "model": f"{MODEL_NAME} (Option B / torch_neuronx)",
                              "device": "Inferentia2", "max_total_tokens": MAX, "max_prompt_tokens": BUCKET,
-                             "routes": ["/generate", "/v1/chat/completions", "/v1/models"]})
+                             "routes": ["/generate", "/v1/chat/completions", "/v1/completions", "/v1/models", "/health"]})
     def do_POST(self):
         try:
             path = self.path.rstrip("/")
@@ -155,6 +158,23 @@ class H(BaseHTTPRequestHandler):
                     "created": int(time.time()), "model": body.get("model", MODEL_NAME),
                     "choices": [{"index": 0, "message": {"role": "assistant", "content": text},
                                  "finish_reason": finish}],
+                    "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
+            elif path == "/v1/completions":
+                # vLLM-style text completion. `prompt` may be a string or a list.
+                prompt = body.get("prompt", "")
+                if isinstance(prompt, list):
+                    prompt = prompt[0] if prompt else ""
+                if not prompt: return self._send(400, {"error": {"message": "missing 'prompt'"}})
+                temp = body.get("temperature", 0.7)
+                # instruct model -> wrap prompt as a user turn so query_vllm gets coherent output
+                text, pt, ct, finish = run_chat(
+                    [{"role": "user", "content": prompt}], int(body.get("max_tokens", 256)), temp,
+                    int(body.get("top_k", 0)), float(body.get("top_p", 0.95)), body.get("stop"))
+                _counter[0] += 1
+                self._send(200, {
+                    "id": f"cmpl-{int(time.time())}-{_counter[0]}", "object": "text_completion",
+                    "created": int(time.time()), "model": body.get("model", MODEL_NAME),
+                    "choices": [{"index": 0, "text": text, "logprobs": None, "finish_reason": finish}],
                     "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
             elif path == "/generate":
                 prompt = body.get("prompt", "")
