@@ -1,7 +1,7 @@
 # Baked Docker image (vLLM/OpenAI-compatible) — Gemma-4-E2B on inf2
 
 **ECR:** `106059658660.dkr.ecr.us-east-2.amazonaws.com/gemma4-optb:256-64` (also `:latest`)
-~20.5 GB compressed / 49.7 GB uncompressed. Built + verified 2026-07-06.
+~16.9 GB compressed / 40.4 GB uncompressed (CPU-torch build). Built + verified 2026-07-06.
 
 Self-contained: neffs (256/64) + real model + transformers 5.13 + torch_neuronx 2.8.0.2.12
 + the box's `/opt/aws/neuron` runtime (libnrt) all baked in. Version-pinned so the neffs load.
@@ -21,5 +21,5 @@ port 8080, `--device /dev/neuron*` → matches the gpu-devops-agent MCP `check_v
 
 ## Notes
 - Needs Neuron HARDWARE (inf2) + host driver; not runnable on a laptop.
-- Image is big because torch pulled the CUDA build (~unused on inf2). A CPU-torch base would cut ~7 GB.
+- Uses CPU torch (installed from a local wheel — the build net can't TLS-handshake PyTorch's R2 CDN; `curl` the wheel on the host, COPY it in). Saved ~9 GB vs the CUDA build. Remaining bulk is the model (10 GB) + neffs (7 GB), irreducible.
 - Rebuild: see Dockerfile; build context = /workspace/imgbuild (hardlinked artifacts + opt_neuron).
