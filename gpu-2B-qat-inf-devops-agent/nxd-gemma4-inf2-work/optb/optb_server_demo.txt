@@ -1,0 +1,25 @@
+Gemma-4-E2B inference SERVER on Inferentia2 (Option B two-graph KV-cache) — 2026-07-06
+box i-01718af33c99f0eeb (inf2.8xlarge, us-east-1). Stdlib http.server, no deps.
+Loads both neffs ONCE (~82s), then serves POST /generate {"prompt": "..."} fast.
+
+Startup: READY in 81.8s — serving on :8080
+
+GET /  ->
+  {"status":"ok","model":"gemma-4-E2B-it (Option B / torch_neuronx)","device":"Inferentia2",
+   "max_total_tokens":128,"max_prompt_tokens":32}
+
+POST /generate:
+  "What is the capital of Japan?"
+     -> "The capital of Japan is **Tokyo**."            9 tok  0.18s  43.8 tok/s
+  "Write a haiku about GPUs."
+     -> "Fast parallel might,\nRendering worlds in light,\nPowering the mind."
+                                                        17 tok  0.36s  44.5 tok/s
+  "Explain what an Inferentia chip is in one sentence."
+     -> "An Inferentia chip is a specialized hardware accelerator designed to
+         efficiently perform complex inference tasks, such as those in machine
+         learning, on data."                            29 tok  0.63s  44.7 tok/s
+
+Run:  PATH=/opt/aws_neuronx_venv_pytorch_2_8/bin:$PATH python optb_server.py
+      (PORT env overrides 8080). Requests serialized by a lock (one Inferentia device).
+This is a working replacement for the vLLM/NxD endpoint that served gibberish.
+Limits (current neffs): prompt <=32 tokens, total <=128 tokens (recompile to raise).
