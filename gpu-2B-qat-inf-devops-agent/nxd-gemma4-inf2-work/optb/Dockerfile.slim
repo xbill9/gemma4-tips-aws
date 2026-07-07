@@ -1,0 +1,8 @@
+# Slim-host variant: same weights/neffs/runtime as the full image, but the server loads ONLY
+# the embedding + PLE tables on the host (bf16, ~6 GB) instead of the full ~20 GB fp32 model.
+# Fits inf2.xlarge (16 GiB host RAM). Built FROM the full image so it's just a tiny added layer.
+ARG BASE=optb-base:full
+FROM ${BASE}
+COPY optb_server_slim.py /app/optb_server_slim.py
+ENV HOST_DTYPE=bf16
+CMD ["python","/app/optb_server_slim.py"]

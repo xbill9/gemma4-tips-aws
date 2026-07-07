@@ -1,37 +1,74 @@
 """Persistent Gemma-4-E2B inference server on Inferentia2 (Option B, two-graph KV-cache).
-Loads both neffs ONCE, then serves fast (~44 tok/s). Stdlib http.server, no deps.
-Routes:
-  GET  /                     health
-  GET  /v1/models            OpenAI-style model list
-  POST /generate             {"prompt","max_new_tokens","temperature","top_k","top_p","stop"}
-  POST /v1/chat/completions  OpenAI-compatible (messages[], temperature, top_p, max_tokens, stop)
-Sampling: temperature<=0 => greedy; else temperature/top_k/top_p nucleus sampling.
+SLIM-HOST variant: loads ONLY the embedding + PLE tables on the host (in bf16), NOT the 35
+transformer decoder blocks (those are baked into the neffs and never used host-side). This drops
+host RAM from ~20 GB (full fp32 model) to ~6 GB so it fits inf2.xlarge (16 GiB) without swapping.
+
+Everything downstream (neffs, sampling, routes) is identical to optb_server.py.
+Env: HOST_DTYPE (bf16|fp32, default bf16), SELFTEST=1 to run a France->Paris parity check at boot.
 NOTE: no authentication (per request). Bound to 0.0.0.0."""
 import os
 os.environ["NEURON_RT_VISIBLE_CORES"] = "0,1"
-import sys, json, time, threading, torch
+import sys, json, time, threading, glob, resource, torch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MP = "/workspace/real-gemma4-E2B-it"
 MAX = int(os.environ.get("KV_MAX", "128"))
 BUCKET = int(os.environ.get("KV_BUCKET", "32"))
 PRE_NEFF = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
 DEC_NEFF = os.environ.get("KV_DEC_OUT", "/workspace/kv_dec_neff.pt")
+HOST_DTYPE = torch.bfloat16 if os.environ.get("HOST_DTYPE", "bf16") == "bf16" else torch.float32
+SELFTEST = os.environ.get("SELFTEST", "0") == "1"
 NEG = torch.finfo(torch.float32).min
 NEG_INF = float("-inf")
 PORT = int(os.environ.get("PORT", "8080"))
 MODEL_NAME = "gemma-4-E2B-it"
 
-from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
+def rss_gb():
+    return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024), 2)  # KB->GB on linux
+
+from transformers import AutoTokenizer, AutoConfig, Gemma4ForConditionalGeneration
+from safetensors import safe_open
 import torch_neuronx
-print("loading tokenizer + model (host embeddings)...", flush=True)
+print(f"loading tokenizer + SLIM host embeddings (dtype={HOST_DTYPE}, no transformer weights)...", flush=True)
 tok = AutoTokenizer.from_pretrained(MP)
-m = Gemma4ForConditionalGeneration.from_pretrained(MP, torch_dtype=torch.float32, attn_implementation="eager"); m.eval()
+cfg_full = AutoConfig.from_pretrained(MP)
+# 1) build the whole model on META (allocates NO memory)
+with torch.device("meta"):
+    m = Gemma4ForConditionalGeneration(cfg_full)
+m.eval()
+# 2) load ONLY language-model params that are NOT decoder layers (embeddings + PLE + projections/norms),
+#    straight from the safetensors shards -> the 35 transformer blocks are never materialized.
+shards = sorted(glob.glob(os.path.join(MP, "*.safetensors")))
+if not shards:
+    raise RuntimeError(f"no *.safetensors in {MP}")
+sd, nbytes = {}, 0
+for st in shards:
+    with safe_open(st, framework="pt") as f:
+        for k in f.keys():
+            if ".language_model." in k and ".layers." not in k:
+                t = f.get_tensor(k).to(HOST_DTYPE)
+                sd[k] = t; nbytes += t.numel() * t.element_size()
+missing, unexpected = m.load_state_dict(sd, strict=False, assign=True)
 lang = m.model.language_model; cfg = lang.config; SW = cfg.sliding_window
+# meta-construction leaves non-persistent buffers (not in the safetensors) on the meta device.
+# Materialize the ones the HOST path touches; embed_tokens.embed_scale = sqrt(hidden_size).
+# (buffers under the decoder layers run only on-device via the neffs, so they're irrelevant here.)
+for _name, _buf in list(lang.named_buffers()):
+    if "layers." in _name or not _buf.is_meta:
+        continue
+    _mod = lang; *_parents, _leaf = _name.split(".")
+    for _p in _parents: _mod = getattr(_mod, _p)
+    if _leaf == "embed_scale":
+        _mod.register_buffer(_leaf, torch.tensor(float(cfg.hidden_size) ** 0.5), persistent=False)
+    else:
+        print(f"WARN: unmaterialized host buffer {_name} -> zeros", flush=True)
+        _mod.register_buffer(_leaf, torch.zeros(tuple(_buf.shape)), persistent=False)
+print(f"slim-loaded {len(sd)} tensors ({round(nbytes/1e9,2)} GB) for host embeddings; "
+      f"peak RSS so far {rss_gb()} GB", flush=True)
 NONSHARED, LINFO = [], {}
 for i, lyr in enumerate(lang.layers[:cfg.num_hidden_layers]):
     a = lyr.self_attn
     if not a.is_kv_shared_layer:
-        NONSHARED.append(i); LINFO[i] = (a.k_proj.out_features // a.head_dim, a.head_dim)
+        LINFO[i] = (a.k_proj.out_features // a.head_dim, a.head_dim); NONSHARED.append(i)
 ec = m.generation_config.eos_token_id
 EOS = set(ec) if isinstance(ec, (list, tuple)) else {ec}
 
@@ -91,7 +128,9 @@ def embed_ids(id_list):
     ids = torch.tensor([id_list])
     with torch.no_grad():
         ie = lang.embed_tokens(ids); ple = lang.get_per_layer_inputs(ids, ie)
-    return ie, ple
+    # tables are bf16 (low RAM) but the neffs were traced with fp32 activations -> cast the
+    # small per-token tensors to fp32 so ops.neuron.forward_v2 gets the dtype it expects.
+    return ie.float(), ple.float()
 
 def host_pos(pos):
     ar = torch.arange(MAX)
@@ -102,7 +141,6 @@ def host_pos(pos):
     return torch.tensor([[pos]], dtype=torch.long), oh, f, s
 
 def pick(logits, temperature, top_k, top_p):
-    """logits: 1-D tensor over vocab. Returns an int token id."""
     if temperature is None or temperature <= 0.0:
         return int(torch.argmax(logits))
     logits = logits.float() / float(temperature)
@@ -114,7 +152,7 @@ def pick(logits, temperature, top_k, top_p):
     if top_p and 0.0 < top_p < 1.0:
         sp, si = torch.sort(probs, descending=True)
         cum = torch.cumsum(sp, dim=-1)
-        keep = cum - sp <= top_p            # keep tokens up to and incl. the one crossing p
+        keep = cum - sp <= top_p
         sp = torch.where(keep, sp, torch.zeros_like(sp))
         probs = torch.zeros_like(probs).scatter(0, si, sp)
     total = probs.sum()
@@ -169,7 +207,11 @@ def run_chat(messages, max_new, temperature, top_k, top_p, stop):
 with LOCK:
     try: _ = generate_ids(tok.apply_chat_template([{"role": "user", "content": "Hi"}], add_generation_prompt=True, return_tensors="pt", return_dict=True)["input_ids"][0].tolist(), 3, 0.0, 0, 1.0, set())
     except Exception as e: print("warmup:", e, flush=True)
-print(f"READY in {round(time.time()-t0,1)}s — serving on :{PORT} (sampling + OpenAI, no auth)", flush=True)
+print(f"READY in {round(time.time()-t0,1)}s — serving on :{PORT} (SLIM host, peak RSS {rss_gb()} GB)", flush=True)
+
+if SELFTEST:
+    txt, pt, ct, fin = run_chat([{"role": "user", "content": "What is the capital of France? Answer in one word."}], 8, 0.0, 0, 1.0, None)
+    print(f"SELFTEST capital-of-France -> {txt!r}  (expect 'Paris')  peakRSS={rss_gb()}GB", flush=True)
 
 class H(BaseHTTPRequestHandler):
     def _send(self, code, obj):
@@ -187,12 +229,12 @@ class H(BaseHTTPRequestHandler):
         p = self.path.rstrip("/")
         if p == "/v1/models":
             self._send(200, {"object": "list", "data": [{"id": MODEL_NAME, "object": "model", "owned_by": "local-inferentia2"}]})
-        elif p in ("/health", "/ping"):          # vLLM-style liveness
+        elif p in ("/health", "/ping"):
             self._send(200, {"status": "ok"})
         elif p == "/metrics":                     # Prometheus metrics
             self._send_text(200, _render_metrics())
         else:
-            self._send(200, {"status": "ok", "model": f"{MODEL_NAME} (Option B / torch_neuronx)",
+            self._send(200, {"status": "ok", "model": f"{MODEL_NAME} (Option B / torch_neuronx, slim-host)",
                              "device": "Inferentia2", "max_total_tokens": MAX, "max_prompt_tokens": BUCKET,
                              "routes": ["/generate", "/v1/chat/completions", "/v1/completions", "/v1/models", "/health", "/metrics"]})
     def do_POST(self):
@@ -214,13 +256,11 @@ class H(BaseHTTPRequestHandler):
                                  "finish_reason": finish}],
                     "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
             elif path == "/v1/completions":
-                # vLLM-style text completion. `prompt` may be a string or a list.
                 prompt = body.get("prompt", "")
                 if isinstance(prompt, list):
                     prompt = prompt[0] if prompt else ""
                 if not prompt: return self._send(400, {"error": {"message": "missing 'prompt'"}})
                 temp = body.get("temperature", 0.7)
-                # instruct model -> wrap prompt as a user turn so query_vllm gets coherent output
                 text, pt, ct, finish = run_chat(
                     [{"role": "user", "content": prompt}], int(body.get("max_tokens", 256)), temp,
                     int(body.get("top_k", 0)), float(body.get("top_p", 0.95)), body.get("stop"))

@@ -189,38 +189,34 @@ async def get_active_model_name(client: AsyncOpenAI) -> str:
 
 @mcp.resource("config://vllm-deployment-template")
 def get_deployment_template() -> str:
-    """Returns a base template for AWS EC2 Inferentia vLLM deployment."""
-    return """
-# AWS EC2 vLLM Deployment Template
-# Required Instance: inf2.xlarge (1x AWS Inferentia2 Device, 32GB HBM)
-# Recommended AMI: Deep Learning AMI Neuron (Ubuntu 22.04)
+    """Returns a base template for AWS EC2 Inferentia deployment of the Option B (optb) server.
 
-InstanceType: inf2.xlarge
-ImageId: ami-04bc17e82845c478a (us-east-1)
+    Option B replaces vLLM/NxD (gibberish on Gemma-4's cross-layer KV-sharing) with a
+    torch_neuronx two-graph KV-cache server. The public Docker Hub image is self-contained
+    (weights + neffs + server baked in) and serves an OpenAI-compatible API on :8080.
+    """
+    return """
+# AWS EC2 Inferentia Deployment Template (Option B / optb server, NOT vLLM)
+# Instance: inf2.xlarge (16GB host RAM, needs swap) with the :slim image,
+#           OR inf2.8xlarge (128GB host RAM) with the :latest image.
+# AMI: any Deep Learning Base Neuron AMI (Ubuntu 22.04) — only the Neuron driver + docker are needed.
+
+InstanceType: inf2.8xlarge        # or inf2.xlarge (use the :slim image)
 Ports:
   - Container Port: 8080
   - Host Port: 8080
 
-Docker Run Command:
-docker run -d --name vllm-server \\
+# REQUIRED on a 16GB host (inf2.xlarge): add swap so the ~14.5GB neff-load peak doesn't OOM:
+#   fallocate -l 32G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+
+Docker Run Command (public image, no auth, weights+neffs baked in):
+docker run -d --name gemma-optb \\
   --device /dev/neuron0 \\
-  --ipc=host \\
-  --restart always \\
+  --restart unless-stopped \\
   -p 8080:8080 \\
-  -e HF_TOKEN=$HF_TOKEN \\
-  -e NEURON_CC_FLAGS="--model-type transformer" \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  python3 -m vllm.entrypoints.openai.api_server \\
-  --model google/gemma-4-E2B-it \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size 2 \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
+  xbill9/gemma4-optb:latest        # inf2.8xlarge; use xbill9/gemma4-optb:slim on inf2.xlarge
+
+# Serves: /v1/chat/completions, /v1/completions, /v1/models, /generate, /health
 """
 
 
@@ -390,23 +386,17 @@ async def query_vllm(prompt: str, max_tokens: int = 512, temperature: float = 0.
 
 
 
-def _get_inferentia_user_data(model_path: str, hf_token_expr: str) -> str:
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    import base64
-    import lzma
-    import re
-    patch_file_path = os.path.join(current_dir, "apply_all_patches.py")
-    try:
-        import boto3
-        s3_client = boto3.client('s3', region_name='us-east-1')
-        presigned_url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': 'xbill-gemma4-patches-2b', 'Key': 'apply_all_patches.py'},
-            ExpiresIn=3600
-        )
-    except Exception as e:
-        presigned_url = ""
+def _get_inferentia_user_data(model_path: str, hf_token_expr: str = "", instance_type: str = "inf2.8xlarge") -> str:
+    """Cloud-init user-data that deploys the Option B (optb) OpenAI-compatible server.
+
+    Option B replaces vLLM/NxD (which emits gibberish for Gemma-4's cross-layer KV-sharing) with a
+    torch_neuronx-traced two-graph KV-cache server. The public Docker Hub image bakes in the compiled
+    neffs + weights + server and exposes /v1/chat/completions, /v1/completions, /v1/models, /generate,
+    /health on :8080. `model_path`/`hf_token_expr` are unused (the image is self-contained).
+    """
+    # Slim server (host-only bf16 embeddings, ~6 GB) fits inf2.xlarge's 16 GB host RAM; the full
+    # server targets the big-RAM 8xlarge. Both need swap for the ~14.5 GB neff-load peak.
+    optb_image = "xbill9/gemma4-optb:slim" if instance_type.strip().lower() in ("inf2.xlarge", "inf2.2xlarge") else "xbill9/gemma4-optb:latest"
 
     user_data = f"""#!/bin/bash
 # Install and start SSM agent (if not present) and add SSH key
@@ -502,72 +492,16 @@ done
 mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
 chmod -R 777 /home/ubuntu/.cache
 
-# 3. Download patch script via presigned URL
-wget "{presigned_url}" -O /home/ubuntu/patch_transformers.py
+# (Option B image is self-contained: weights + neffs + server baked in; no patches / model download.)
 
 
-# Write startup and patching script to host
-cat << 'EOF' > /home/ubuntu/patch_and_run.sh
-#!/bin/bash
-set -e
-echo "Ensuring correct transformers version..."
-pip install "transformers==4.57.6"
 
-echo "Running python patcher for transformers..."
-python3 /home/ubuntu/patch_transformers.py
-# Note: neuron_quant registration is handled by apply_all_patches.py (Patch 11).
-
-# Dynamic TP detection inside container based on exposed neuron devices
-device_count=0
-for dev in /dev/neuron*; do
-    if [ -e "$dev" ]; then
-        device_count=$((device_count + 1))
-    fi
-done
-if [ $device_count -eq 0 ]; then
-    device_count=1
-fi
-tensor_parallel_size=$((device_count * 2))
-echo "Detected $device_count Neuron device(s). Using --tensor-parallel-size $tensor_parallel_size"
-
-echo "Starting vLLM Server with memory optimizations..."
-python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --max-model-len 1024 \\
-  --tensor-parallel-size $tensor_parallel_size \\
-  --max-num-seqs 2 \\
-  --swap-space 0 \\
-  --no-enable-prefix-caching \\
-  --max-num-batched-tokens 512 \\
-  --num-gpu-blocks-override 128 \\
-  --block-size 16 \\
-  --kv-cache-dtype auto \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
-EOF
-chmod +x /home/ubuntu/patch_and_run.sh
-
-docker run -d --name vllm-server \\
-  --no-healthcheck \\
-  $devices \\
-  --ipc=host \\
-  --restart no \\
-  -p 8080:8080 \\
-  -e HF_TOKEN="{hf_token_expr}" \\
-  -e NEURON_CC_FLAGS="--model-type=gemma4 --enable-mixed-shapes=False --target=inf2 --hbm-scratchpad-page-size=1024" \\
-  -e NEURON_SCRATCHPAD_PAGE_SIZE=1024 \\
-  -e NEURON_CORES_PER_WORKER=2 \\
-  -e NEURON_COMPILER_WORKERS=1 \\
-  -e VLLM_USE_V1=0 \\
-  -e VLLM_ENGINE_READY_TIMEOUT_S=1800 \\
-  -e VLLM_ENGINE_ITERATION_TIMEOUT_S=600 \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  -v /home/ubuntu/patch_transformers.py:/home/ubuntu/patch_transformers.py \\
-  -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  bash /patch_and_run.sh
+# --- Option B (optb) server: pull the public Docker Hub image and run it. No vLLM, no patching. ---
+echo "Pulling Option B image {optb_image} ..."
+for i in $(seq 1 12); do docker pull {optb_image} && break; sleep 20; done
+docker rm -f gemma-optb 2>/dev/null || true
+docker run -d --name gemma-optb --restart unless-stopped $devices -p 8080:8080 {optb_image}
+echo "Option B server starting on :8080 (OpenAI-compatible; ~100s warmup)."
 """
     return user_data
 
@@ -596,7 +530,7 @@ def get_vllm_deployment_config(
     image_id = "ami-04604f21b81ffbd87" # Fallback for us-east-1
 
     hf_token_expr = '$(aws ssm get-parameter --name /vllm/HF_TOKEN --with-decryption --query Parameter.Value --output text 2>/dev/null || echo \'\')'
-    user_data = _get_inferentia_user_data(model_path, hf_token_expr)
+    user_data = _get_inferentia_user_data(model_path, hf_token_expr, instance_type)
     aws_cmd = (
         f"aws ec2 run-instances \\\n"
         f"  --image-id {image_id} \\\n"
@@ -608,14 +542,15 @@ def get_vllm_deployment_config(
     )
 
     return (
-        f"### 🚀 AWS EC2 {instance_type} (AWS Inferentia/Trainium) Spot Instance vLLM Deployment Config\n\n"
+        f"### 🚀 AWS EC2 {instance_type} (AWS Inferentia) Option B (optb) Deployment Config\n\n"
         f"#### 1. UserData Script (`user_data.sh`):\n"
         f"```bash\n{user_data}\n```\n\n"
         f"#### 2. Run Instance CLI Command:\n"
         f"```bash\n{aws_cmd}\n```\n\n"
         f"#### 3. Prerequisites:\n"
-        f'- Save your HF Token in AWS SSM Parameter Store: `aws ssm put-parameter --name /vllm/HF_TOKEN --value "your-token" --type SecureString`\n'
+        f"- No HF token needed — the `xbill9/gemma4-optb` image bakes in the weights + compiled neffs.\n"
         f"- Ensure the security group allows inbound TCP traffic on port `8080`.\n"
+        f"- On `inf2.xlarge` (16GB RAM) the user-data adds swap (required for the neff-load peak) and uses the `:slim` image.\n"
         f"- *Note:* The resolved fallback AMI for AWS Neuron on Ubuntu 22.04 in region `{AWS_REGION}` is `{image_id}`."
     )
 
@@ -709,7 +644,7 @@ async def deploy_vllm(
         logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
         model_path = "google/gemma-4-E2B-it"
 
-    user_data = _get_inferentia_user_data(model_path, hf_token)
+    user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
     # 5. Launch EC2 Instance
     last_error = None
@@ -1031,7 +966,7 @@ async def start_ec2(
         logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
         model_path = "google/gemma-4-E2B-it"
 
-    user_data = _get_inferentia_user_data(model_path, hf_token)
+    user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
     # 5. Launch EC2 Instance
     try:
