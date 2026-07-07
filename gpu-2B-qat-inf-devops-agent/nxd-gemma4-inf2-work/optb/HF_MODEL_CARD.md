@@ -76,9 +76,10 @@ Inference is split into two compiled graphs sharing one static KV buffer:
 | `kv_pre_512.pt` | Prefill neff (TorchScript, bf16) |
 | `kv_dec_512.pt` | Decode neff (TorchScript, bf16) |
 | `optb_kv.py` | Builds/compiles both neffs (`cpu` = reference check, `trace` = compile) |
-| `optb_server.py` | Stdlib-only HTTP server; loads both neffs once, then serves |
+| `optb_server.py` | Stdlib-only HTTP server (full model on host); loads both neffs once, then serves |
+| `optb_server_slim.py` | Low-RAM server — loads only the embedding/PLE tables on the host (bf16, ~6 GB) so it fits **inf2.xlarge** (16 GB). Same API. |
 | `optb_gen.py` | Minimal standalone greedy-generation example |
-| `Dockerfile` | Reproducible runtime image (CPU torch + Neuron runtime + neffs) |
+| `Dockerfile` / `Dockerfile.slim` | Reproducible runtime images (full / slim) |
 
 The neffs embed the base weights in bf16, so they are Apache-2.0 derivatives of
 `google/gemma-4-E2B-it` — see **License** below.
@@ -95,8 +96,22 @@ docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb:latest
 # then: curl -s localhost:8080/health
 ```
 
-Image: **`docker.io/xbill9/gemma4-optb`** (tags `latest`, `512-128`; ~16 GB, Apache-2.0).
-It serves the same OpenAI-compatible routes described below.
+Image tags on **`docker.io/xbill9/gemma4-optb`** (~16 GB each, Apache-2.0):
+- **`latest`** / `512-128` — full server, for **inf2.8xlarge** (128 GB host RAM), **~44 tok/s**.
+- **`slim`** — low-RAM server for **inf2.xlarge** (16 GB host RAM), **~24 tok/s**.
+
+### inf2.xlarge (the cheap box) needs swap ⚠️
+The slim server fits 16 GB *serving-time* (~3.6 GB), but loading the two 3.4 GB neffs briefly peaks
+at **~14.5 GB**. On a host with **no swap** (e.g. a stock Neuron DLAMI) that OOM-kills the container.
+Add swap **before** running:
+
+```bash
+sudo fallocate -l 16G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb:slim
+```
+
+Both images serve the same OpenAI-compatible routes below, plus a Prometheus **`/metrics`** endpoint
+(requests, tokens, tokens/sec, errors, resident memory).
 
 ## Run from these files
 
