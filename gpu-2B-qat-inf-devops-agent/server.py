@@ -1043,12 +1043,12 @@ async def destroy_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
         cmd_response = ssm.send_command(
             InstanceIds=instance_ids,
             DocumentName="AWS-RunShellScript",
-            Parameters={"commands": ["docker stop vllm-server || true", "docker rm vllm-server || true"]},
+            Parameters={"commands": ["docker ps -aq --filter name=gemma | xargs -r docker rm -f || true"]},
         )
         command_id = cmd_response["Command"]["CommandId"]
 
         return (
-            f"🧹 Successfully requested cleanup of the 'vllm-server' Docker container on EC2 Instance(s): {', '.join(instance_ids)}.\n"
+            f"🧹 Successfully requested cleanup of the Option B (`gemma-*`) Docker container(s) on EC2 Instance(s): {', '.join(instance_ids)}.\n"
             f"SSM Command ID: `{command_id}` (EC2 instance(s) remain running)."
         )
     except Exception as e:
@@ -1253,7 +1253,7 @@ async def check_vllm(
             cmd_res = ssm.send_command(
                 InstanceIds=[inst_id],
                 DocumentName="AWS-RunShellScript",
-                Parameters={"commands": ["docker inspect -f '{{.State.Status}}' vllm-server 2>&1"]},
+                Parameters={"commands": ["docker ps -a --filter name=gemma --format '{{.Names}}: {{.Status}}' 2>/dev/null | head -1 | grep . || echo 'no gemma-* container'"]},
             )
             cmd_id = cmd_res["Command"]["CommandId"]
 
@@ -1273,7 +1273,7 @@ async def check_vllm(
         except Exception as e:
             docker_status = f"Error querying SSM: {str(e)}"
 
-        report += f"- **Docker Container (`vllm-server`)**: `{docker_status}`\n"
+        report += f"- **Option B Container (`gemma-*`)**: `{docker_status}`\n"
 
         # 3. Check vLLM HTTP health endpoint
         http_status = "Unreachable"
@@ -1924,7 +1924,7 @@ async def fetch_ec2_logs(instance_id: str, limit: int = 50) -> str:
         response = ssm.send_command(
             InstanceIds=[instance_id],
             DocumentName="AWS-RunShellScript",
-            Parameters={"commands": [f"docker logs --tail {limit} vllm-server 2>&1"]},
+            Parameters={"commands": [f"CN=$(docker ps -a --filter name=gemma --format '{{{{.Names}}}}' | head -1); docker logs --tail {limit} \"${{CN:-gemma-optb}}\" 2>&1"]},
         )
         command_id = response["Command"]["CommandId"]
 

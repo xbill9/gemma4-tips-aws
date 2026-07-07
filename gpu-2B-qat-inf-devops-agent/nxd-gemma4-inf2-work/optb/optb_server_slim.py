@@ -79,6 +79,48 @@ DEC = torch.jit.load(DEC_NEFF)
 LOCK = threading.Lock()          # one Inferentia device -> serialize requests
 _counter = [0]
 
+# ---- spot-interruption drain + bounded request queue ----
+import urllib.request as _urlreq
+_DRAINING = threading.Event()                       # set on spot-interruption notice
+MAX_QUEUE = int(os.environ.get("MAX_QUEUE", "8"))   # max concurrent+queued generation requests
+_INFLIGHT = [0]
+_QLOCK = threading.Lock()
+
+class _Full(Exception):
+    pass
+
+def _slot_acquire():
+    with _QLOCK:
+        if _INFLIGHT[0] >= MAX_QUEUE:
+            raise _Full()
+        _INFLIGHT[0] += 1
+
+def _slot_release():
+    with _QLOCK:
+        _INFLIGHT[0] = max(0, _INFLIGHT[0] - 1)
+
+def _watch_spot():
+    """Poll EC2 IMDS for a spot-interruption notice; set _DRAINING when it appears (~2 min warning)."""
+    base = "http://169.254.169.254"
+    while not _DRAINING.is_set():
+        tokn = None
+        try:
+            tokn = _urlreq.urlopen(_urlreq.Request(base + "/latest/api/token", method="PUT",
+                    headers={"X-aws-ec2-metadata-token-ttl-seconds": "60"}), timeout=2).read().decode()
+        except Exception:
+            pass
+        try:
+            req = _urlreq.Request(base + "/latest/meta-data/spot/instance-action")
+            if tokn:
+                req.add_header("X-aws-ec2-metadata-token", tokn)
+            if _urlreq.urlopen(req, timeout=2).status == 200:
+                _DRAINING.set()
+                print("SPOT INTERRUPTION NOTICE — draining (503 on new requests)", flush=True)
+                return
+        except Exception:
+            pass   # 404 => no interruption pending; anything else => ignore and retry
+        time.sleep(5)
+
 # ---- /metrics (Prometheus text format, no deps) ----
 _START = time.time()
 _MLOCK = threading.Lock()
@@ -121,6 +163,9 @@ def _render_metrics():
         g("gemma_tokens_per_second_avg", "avg tok/s over all requests", "gauge", f"{avg:.2f}"),
         g("gemma_max_total_tokens", "configured KV_MAX", "gauge", MAX),
         g("gemma_max_prompt_tokens", "configured KV_BUCKET", "gauge", BUCKET),
+        g("gemma_draining", "1 if draining on spot interruption", "gauge", 1 if _DRAINING.is_set() else 0),
+        g("gemma_inflight_requests", "current in-flight+queued generation requests", "gauge", _INFLIGHT[0]),
+        g("gemma_max_queue", "max concurrent+queued requests before 429", "gauge", MAX_QUEUE),
         g("process_resident_memory_bytes", "resident set size", "gauge", _cur_rss_bytes()),
     ]) + "\n"
 
@@ -161,7 +206,9 @@ def pick(logits, temperature, top_k, top_p):
     probs = probs / total
     return int(torch.multinomial(probs, 1))
 
-def generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
+def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
+    """Token generator — MUST be called while holding LOCK. Yields non-EOS/stop token ids
+    one at a time; the generator's StopIteration.value is (n0, finish_reason)."""
     n0 = len(prompt_ids)
     if n0 > BUCKET:
         raise ValueError(f"prompt {n0} tokens > BUCKET {BUCKET}")
@@ -169,32 +216,48 @@ def generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
     ie, ple = embed_ids(pad)
     am = torch.tensor([[1] * n0 + [0] * (BUCKET - n0)])
     lg, ks, vs = PRE(ie, am, ple)
-    first = pick(lg[0, n0 - 1], temperature, top_k, top_p)
+    nxt = pick(lg[0, n0 - 1], temperature, top_k, top_p)
     key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
     val_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
     for j in range(len(NONSHARED)):
         key_bufs[j][:, :, :n0, :] = ks[j][:, :, :n0, :]
         val_bufs[j][:, :, :n0, :] = vs[j][:, :, :n0, :]
-    seq = [first]; cur = n0
-    finish = "length"
+    cur = n0
     cap = min(max_new, MAX - n0 - 1)
-    for _ in range(cap):
-        if seq[-1] in EOS or seq[-1] in stop_ids:
-            finish = "stop"; break
-        ie1, ple1 = embed_ids([seq[-1]])
+    steps = 0
+    while True:
+        if nxt in EOS or nxt in stop_ids:
+            return n0, "stop"
+        yield nxt
+        if steps >= cap:
+            return n0, "length"
+        ie1, ple1 = embed_ids([nxt])
         pid, oh, f, s = host_pos(cur)
         lg1, key_bufs, val_bufs = DEC(ie1, ple1, pid, oh, f, s, key_bufs, val_bufs)
-        seq.append(pick(lg1[0, 0], temperature, top_k, top_p)); cur += 1
-    gen = [t for t in seq if t not in EOS and t not in stop_ids]
-    return gen, n0, finish
+        nxt = pick(lg1[0, 0], temperature, top_k, top_p); cur += 1; steps += 1
 
-def run_chat(messages, max_new, temperature, top_k, top_p, stop):
+def generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
+    """Non-streaming: drain the generator to a full id list. Call under LOCK."""
+    g = _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids)
+    ids, n0, finish = [], len(prompt_ids), "length"
+    try:
+        while True:
+            ids.append(next(g))
+    except StopIteration as e:
+        n0, finish = e.value
+    return ids, n0, finish
+
+def _prep_chat(messages, stop):
     enc = tok.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt", return_dict=True)
     prompt_ids = enc["input_ids"][0].tolist()
     stop_ids = set()
     for s in (stop or []):
         try: stop_ids.update(tok.encode(s, add_special_tokens=False))
         except Exception: pass
+    return prompt_ids, stop_ids
+
+def run_chat(messages, max_new, temperature, top_k, top_p, stop):
+    prompt_ids, stop_ids = _prep_chat(messages, stop)
     t_req = time.time()
     with LOCK:
         gen, n0, finish = generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids)
@@ -229,8 +292,11 @@ class H(BaseHTTPRequestHandler):
         p = self.path.rstrip("/")
         if p == "/v1/models":
             self._send(200, {"object": "list", "data": [{"id": MODEL_NAME, "object": "model", "owned_by": "local-inferentia2"}]})
-        elif p in ("/health", "/ping"):
-            self._send(200, {"status": "ok"})
+        elif p in ("/health", "/ping"):          # liveness / readiness
+            if _DRAINING.is_set():
+                self._send(503, {"status": "draining"})
+            else:
+                self._send(200, {"status": "ok"})
         elif p == "/metrics":                     # Prometheus metrics
             self._send_text(200, _render_metrics())
         else:
@@ -238,55 +304,107 @@ class H(BaseHTTPRequestHandler):
                              "device": "Inferentia2", "max_total_tokens": MAX, "max_prompt_tokens": BUCKET,
                              "routes": ["/generate", "/v1/chat/completions", "/v1/completions", "/v1/models", "/health", "/metrics"]})
     def do_POST(self):
+        path = self.path.rstrip("/")
+        if path not in ("/v1/chat/completions", "/v1/completions", "/generate"):
+            return self._send(404, {"error": {"message": f"unknown route {path}"}})
+        if _DRAINING.is_set():                    # spot interruption -> shed new work
+            return self._send(503, {"error": {"message": "server draining (spot interruption); retry"}})
         try:
-            path = self.path.rstrip("/")
+            _slot_acquire()                       # bounded queue -> fast 429 instead of piling up
+        except _Full:
+            return self._send(429, {"error": {"message": f"server busy (> {MAX_QUEUE} queued); retry later"}})
+        try:
             body = self._body()
             if path == "/v1/chat/completions":
                 msgs = body.get("messages")
                 if not msgs: return self._send(400, {"error": {"message": "missing 'messages'"}})
-                temp = body.get("temperature", 0.7)
-                text, pt, ct, finish = run_chat(
-                    msgs, int(body.get("max_tokens", 256)), temp,
-                    int(body.get("top_k", 0)), float(body.get("top_p", 0.95)), body.get("stop"))
-                _counter[0] += 1
-                self._send(200, {
-                    "id": f"chatcmpl-{int(time.time())}-{_counter[0]}", "object": "chat.completion",
-                    "created": int(time.time()), "model": body.get("model", MODEL_NAME),
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": text},
-                                 "finish_reason": finish}],
-                    "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
+                otype = "chat"
             elif path == "/v1/completions":
                 prompt = body.get("prompt", "")
-                if isinstance(prompt, list):
-                    prompt = prompt[0] if prompt else ""
+                if isinstance(prompt, list): prompt = prompt[0] if prompt else ""
                 if not prompt: return self._send(400, {"error": {"message": "missing 'prompt'"}})
-                temp = body.get("temperature", 0.7)
-                text, pt, ct, finish = run_chat(
-                    [{"role": "user", "content": prompt}], int(body.get("max_tokens", 256)), temp,
-                    int(body.get("top_k", 0)), float(body.get("top_p", 0.95)), body.get("stop"))
-                _counter[0] += 1
-                self._send(200, {
-                    "id": f"cmpl-{int(time.time())}-{_counter[0]}", "object": "text_completion",
-                    "created": int(time.time()), "model": body.get("model", MODEL_NAME),
-                    "choices": [{"index": 0, "text": text, "logprobs": None, "finish_reason": finish}],
-                    "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
-            elif path == "/generate":
+                msgs = [{"role": "user", "content": prompt}]; otype = "text"
+            else:  # /generate
                 prompt = body.get("prompt", "")
                 if not prompt: return self._send(400, {"error": "missing 'prompt'"})
-                text, pt, ct, finish = run_chat(
-                    [{"role": "user", "content": prompt}], int(body.get("max_new_tokens", 110)),
-                    body.get("temperature", 0.0), int(body.get("top_k", 0)),
-                    float(body.get("top_p", 1.0)), body.get("stop"))
-                self._send(200, {"prompt": prompt, "response": text, "prompt_tokens": pt,
-                                 "gen_tokens": ct, "finish_reason": finish})
+                msgs = [{"role": "user", "content": prompt}]; otype = "generate"
+            gd = otype == "generate"
+            max_new = int(body.get("max_tokens", body.get("max_new_tokens", 110 if gd else 256)))
+            temp = body.get("temperature", 0.0 if gd else 0.7)
+            top_k = int(body.get("top_k", 0))
+            top_p = float(body.get("top_p", 1.0 if gd else 0.95))
+            stop = body.get("stop"); model = body.get("model", MODEL_NAME)
+            if bool(body.get("stream")) and otype in ("chat", "text"):
+                self._stream(msgs, max_new, temp, top_k, top_p, stop, otype, model)
             else:
-                self._send(404, {"error": {"message": f"unknown route {path}"}})
+                text, pt, ct, finish = run_chat(msgs, max_new, temp, top_k, top_p, stop)
+                self._completion(otype, text, pt, ct, finish, model, body.get("prompt", ""))
         except ValueError as e:
             _bump(err=1)
-            self._send(400, {"error": {"message": str(e)}})
+            try: self._send(400, {"error": {"message": str(e)}})
+            except Exception: pass
         except Exception as e:
             _bump(err=1)
-            self._send(500, {"error": {"message": repr(e)}})
+            try: self._send(500, {"error": {"message": repr(e)}})
+            except Exception: pass          # headers may already be sent (streaming)
+        finally:
+            _slot_release()
+
+    def _completion(self, otype, text, pt, ct, finish, model, prompt):
+        _counter[0] += 1; now = int(time.time())
+        if otype == "chat":
+            self._send(200, {"id": f"chatcmpl-{now}-{_counter[0]}", "object": "chat.completion",
+                "created": now, "model": model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": finish}],
+                "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
+        elif otype == "text":
+            self._send(200, {"id": f"cmpl-{now}-{_counter[0]}", "object": "text_completion",
+                "created": now, "model": model,
+                "choices": [{"index": 0, "text": text, "logprobs": None, "finish_reason": finish}],
+                "usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}})
+        else:  # /generate
+            self._send(200, {"prompt": prompt, "response": text, "prompt_tokens": pt,
+                             "gen_tokens": ct, "finish_reason": finish})
+
+    def _stream(self, msgs, max_new, temp, top_k, top_p, stop, otype, model):
+        prompt_ids, stop_ids = _prep_chat(msgs, stop)
+        if len(prompt_ids) > BUCKET:
+            return self._send(400, {"error": {"message": f"prompt {len(prompt_ids)} tokens > BUCKET {BUCKET}"}})
+        _counter[0] += 1; now = int(time.time()); cid = f"chatcmpl-{now}-{_counter[0]}"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        def chunk(delta=None, finish=None):
+            if otype == "text":
+                return {"id": cid, "object": "text_completion", "created": now, "model": model,
+                        "choices": [{"index": 0, "text": delta or "", "finish_reason": finish}]}
+            d = {} if delta is None else {"content": delta}
+            return {"id": cid, "object": "chat.completion.chunk", "created": now, "model": model,
+                    "choices": [{"index": 0, "delta": d, "finish_reason": finish}]}
+        def sse(obj):
+            self.wfile.write(b"data: " + json.dumps(obj).encode() + b"\n\n"); self.wfile.flush()
+        t_req = time.time(); ids = []; prev = ""; n0 = len(prompt_ids); finish = "length"
+        try:
+            with LOCK:
+                gen = _generate(prompt_ids, max_new, temp, top_k, top_p, stop_ids)
+                try:
+                    while True:
+                        ids.append(next(gen))
+                        text = tok.decode(ids, skip_special_tokens=True)
+                        delta = text[len(prev):]; prev = text
+                        if delta: sse(chunk(delta=delta))
+                except StopIteration as e:
+                    n0, finish = e.value
+            sse(chunk(finish=finish))
+            self.wfile.write(b"data: [DONE]\n\n"); self.wfile.flush()
+            dt = time.time() - t_req; ct = len(ids)
+            _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, tps=(ct / dt if dt > 0 else 0.0))
+        except (BrokenPipeError, ConnectionResetError):
+            _bump(reqs=1, ptoks=n0, ctoks=len(ids), secs=time.time() - t_req)   # client disconnected
     def log_message(self, *a): pass
 
+threading.Thread(target=_watch_spot, daemon=True).start()
+print(f"spot-interruption watcher on; request queue max={MAX_QUEUE}; SSE streaming enabled", flush=True)
 ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()
