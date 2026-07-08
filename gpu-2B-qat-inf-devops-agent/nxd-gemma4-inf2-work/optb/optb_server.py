@@ -35,10 +35,8 @@ for i, lyr in enumerate(lang.layers[:cfg.num_hidden_layers]):
 ec = m.generation_config.eos_token_id
 EOS = set(ec) if isinstance(ec, (list, tuple)) else {ec}
 
-print("loading neffs onto NeuronCores...", flush=True)
-t0 = time.time()
-PRE = torch.jit.load(PRE_NEFF)
-DEC = torch.jit.load(DEC_NEFF)
+PRE = DEC = None                 # neffs loaded in the background so /health can report "loading" during warmup
+_READY = threading.Event()       # set once neffs are loaded + warmup done
 LOCK = threading.Lock()          # one Inferentia device -> serialize requests
 _counter = [0]
 
@@ -119,7 +117,7 @@ def _render_metrics():
     def g(name, help_, typ, val):
         return f"# HELP {name} {help_}\n# TYPE {name} {typ}\n{name} {val}"
     return "\n".join([
-        g("gemma_up", "1 if serving", "gauge", 1),
+        g("gemma_up", "1 if serving (ready)", "gauge", 1 if _READY.is_set() else 0),
         g("gemma_uptime_seconds", "seconds since process start", "gauge", f"{up:.1f}"),
         g("gemma_requests_total", "total generation requests", "counter", m["requests_total"]),
         g("gemma_errors_total", "total request errors", "counter", m["errors_total"]),
@@ -223,6 +221,7 @@ def _prep_chat(messages, stop):
     enc = tok.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt", return_dict=True)
     prompt_ids = enc["input_ids"][0].tolist()
     stop_ids = set()
+    if isinstance(stop, str): stop = [stop]      # OpenAI allows `stop` to be a string OR a list
     for s in (stop or []):
         try: stop_ids.update(tok.encode(s, add_special_tokens=False))
         except Exception: pass
@@ -236,13 +235,8 @@ def run_chat(messages, max_new, temperature, top_k, top_p, stop, timeout_s=None)
     text = tok.decode(gen, skip_special_tokens=True)
     dt = time.time() - t_req; ct = len(gen)
     _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, to=(1 if finish == "timeout" else 0), tps=(ct / dt if dt > 0 else 0.0))
+    print(f"[req] pt={n0} ct={ct} {round(ct/dt,1) if dt>0 else 0}tok/s {round(dt,2)}s finish={finish}", flush=True)
     return text, n0, ct, finish
-
-# warm up
-with LOCK:
-    try: _ = generate_ids(tok.apply_chat_template([{"role": "user", "content": "Hi"}], add_generation_prompt=True, return_tensors="pt", return_dict=True)["input_ids"][0].tolist(), 3, 0.0, 0, 1.0, set())
-    except Exception as e: print("warmup:", e, flush=True)
-print(f"READY in {round(time.time()-t0,1)}s — serving on :{PORT} (sampling + OpenAI, no auth)", flush=True)
 
 class H(BaseHTTPRequestHandler):
     def _send(self, code, obj):
@@ -263,6 +257,8 @@ class H(BaseHTTPRequestHandler):
         elif p in ("/health", "/ping"):          # liveness / readiness
             if _DRAINING.is_set():
                 self._send(503, {"status": "draining"})
+            elif not _READY.is_set():
+                self._send(503, {"status": "loading"})
             else:
                 self._send(200, {"status": "ok"})
         elif p == "/metrics":                     # Prometheus metrics
@@ -275,6 +271,8 @@ class H(BaseHTTPRequestHandler):
         path = self.path.rstrip("/")
         if path not in ("/v1/chat/completions", "/v1/completions", "/generate"):
             return self._send(404, {"error": {"message": f"unknown route {path}"}})
+        if not _READY.is_set():                   # still warming up (loading neffs)
+            return self._send(503, {"error": {"message": "server loading (warming up); retry shortly"}})
         if _DRAINING.is_set():                    # spot interruption -> shed new work
             return self._send(503, {"error": {"message": "server draining (spot interruption); retry"}})
         try:
@@ -297,10 +295,12 @@ class H(BaseHTTPRequestHandler):
                 if not prompt: return self._send(400, {"error": "missing 'prompt'"})
                 msgs = [{"role": "user", "content": prompt}]; otype = "generate"
             gd = otype == "generate"
-            max_new = int(body.get("max_tokens", body.get("max_new_tokens", 110 if gd else 256)))
-            temp = body.get("temperature", 0.0 if gd else 0.7)
+            max_new = int(body.get("max_tokens", body.get("max_completion_tokens", body.get("max_new_tokens", 110 if gd else 256))))
+            temp = float(body.get("temperature", 0.0 if gd else 0.7))
             top_k = int(body.get("top_k", 0))
             top_p = float(body.get("top_p", 1.0 if gd else 0.95))
+            max_new = max(1, min(max_new, MAX - 1)); temp = max(0.0, min(temp, 5.0))  # clamp to sane bounds
+            top_p = max(0.0, min(top_p, 1.0)); top_k = max(0, top_k)
             stop = body.get("stop"); model = body.get("model", MODEL_NAME)
             timeout_s = float(body["timeout"]) if body.get("timeout") else None
             if bool(body.get("stream")) and otype in ("chat", "text"):
@@ -370,6 +370,7 @@ class H(BaseHTTPRequestHandler):
             self.wfile.write(b"data: [DONE]\n\n"); self.wfile.flush()
             dt = time.time() - t_req; ct = len(ids)
             _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, to=(1 if finish == "timeout" else 0), tps=(ct / dt if dt > 0 else 0.0))
+            print(f"[req] stream pt={n0} ct={ct} {round(ct/dt,1) if dt>0 else 0}tok/s {round(dt,2)}s finish={finish}", flush=True)
         except (BrokenPipeError, ConnectionResetError):
             _bump(reqs=1, ptoks=n0, ctoks=len(ids), secs=time.time() - t_req)   # client disconnected
     def log_message(self, *a): pass
@@ -388,7 +389,22 @@ def _graceful_term(signum, frame):
     threading.Thread(target=_drain_then_stop, daemon=True).start()
 signal.signal(signal.SIGTERM, _graceful_term)
 
-print(f"spot+SIGTERM drain on; queue max={MAX_QUEUE}; gen timeout {GEN_TIMEOUT}s; SSE streaming enabled", flush=True)
+def _load_and_warm():
+    global PRE, DEC
+    print("loading neffs onto NeuronCores...", flush=True)
+    t0 = time.time()
+    PRE = torch.jit.load(PRE_NEFF)
+    DEC = torch.jit.load(DEC_NEFF)
+    with LOCK:
+        try:
+            _ = generate_ids(tok.apply_chat_template([{"role": "user", "content": "Hi"}], add_generation_prompt=True, return_tensors="pt", return_dict=True)["input_ids"][0].tolist(), 3, 0.0, 0, 1.0, set())
+        except Exception as e:
+            print("warmup:", e, flush=True)
+    _READY.set()
+    print(f"READY in {round(time.time()-t0,1)}s — serving on :{PORT} (streaming, queue, drain, timeout)", flush=True)
+
+threading.Thread(target=_load_and_warm, daemon=True).start()
+print(f"HTTP listening on :{PORT} — /health=503 'loading' until ready; queue max={MAX_QUEUE}, gen timeout {GEN_TIMEOUT}s", flush=True)
 try:
     _HTTPD.serve_forever()
 except KeyboardInterrupt:
