@@ -44,8 +44,11 @@ _counter = [0]
 
 # ---- spot-interruption drain + bounded request queue ----
 import urllib.request as _urlreq
-_DRAINING = threading.Event()                       # set on spot-interruption notice
+import signal
+_DRAINING = threading.Event()                       # set on spot-interruption notice OR SIGTERM
 MAX_QUEUE = int(os.environ.get("MAX_QUEUE", "8"))   # max concurrent+queued generation requests
+GEN_TIMEOUT = float(os.environ.get("GEN_TIMEOUT", "120"))     # per-request wall-clock cap (seconds)
+GRACE_SECONDS = float(os.environ.get("GRACE_SECONDS", "25"))  # SIGTERM: wait this long for in-flight to finish
 _INFLIGHT = [0]
 _QLOCK = threading.Lock()
 
@@ -87,16 +90,17 @@ def _watch_spot():
 # ---- /metrics (Prometheus text format, no deps) ----
 _START = time.time()
 _MLOCK = threading.Lock()
-_METRICS = {"requests_total": 0, "errors_total": 0, "prompt_tokens_total": 0,
+_METRICS = {"requests_total": 0, "errors_total": 0, "timeouts_total": 0, "prompt_tokens_total": 0,
             "completion_tokens_total": 0, "generation_seconds_total": 0.0, "last_tok_per_s": 0.0}
 
-def _bump(reqs=0, ptoks=0, ctoks=0, secs=0.0, err=0, tps=None):
+def _bump(reqs=0, ptoks=0, ctoks=0, secs=0.0, err=0, to=0, tps=None):
     with _MLOCK:
         _METRICS["requests_total"] += reqs
         _METRICS["prompt_tokens_total"] += ptoks
         _METRICS["completion_tokens_total"] += ctoks
         _METRICS["generation_seconds_total"] += secs
         _METRICS["errors_total"] += err
+        _METRICS["timeouts_total"] += to
         if tps is not None:
             _METRICS["last_tok_per_s"] = tps
 
@@ -119,6 +123,8 @@ def _render_metrics():
         g("gemma_uptime_seconds", "seconds since process start", "gauge", f"{up:.1f}"),
         g("gemma_requests_total", "total generation requests", "counter", m["requests_total"]),
         g("gemma_errors_total", "total request errors", "counter", m["errors_total"]),
+        g("gemma_timeouts_total", "generations cut short by the wall-clock cap", "counter", m["timeouts_total"]),
+        g("gemma_gen_timeout_seconds", "configured per-request wall-clock cap", "gauge", GEN_TIMEOUT),
         g("gemma_prompt_tokens_total", "total prompt tokens", "counter", m["prompt_tokens_total"]),
         g("gemma_completion_tokens_total", "total generated tokens", "counter", m["completion_tokens_total"]),
         g("gemma_generation_seconds_total", "total generation wall seconds", "counter", f"{m['generation_seconds_total']:.3f}"),
@@ -168,9 +174,10 @@ def pick(logits, temperature, top_k, top_p):
     probs = probs / total
     return int(torch.multinomial(probs, 1))
 
-def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
+def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids, timeout_s=None):
     """Token generator — MUST be called while holding LOCK. Yields non-EOS/stop token ids
-    one at a time; the generator's StopIteration.value is (n0, finish_reason)."""
+    one at a time; the generator's StopIteration.value is (n0, finish_reason).
+    Aborts with finish_reason 'timeout' if wall-clock exceeds timeout_s (or GEN_TIMEOUT)."""
     n0 = len(prompt_ids)
     if n0 > BUCKET:
         raise ValueError(f"prompt {n0} tokens > BUCKET {BUCKET}")
@@ -186,6 +193,7 @@ def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
         val_bufs[j][:, :, :n0, :] = vs[j][:, :, :n0, :]
     cur = n0
     cap = min(max_new, MAX - n0 - 1)
+    deadline = time.time() + (timeout_s or GEN_TIMEOUT)
     steps = 0
     while True:
         if nxt in EOS or nxt in stop_ids:
@@ -193,14 +201,16 @@ def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
         yield nxt
         if steps >= cap:
             return n0, "length"
+        if time.time() > deadline:
+            return n0, "timeout"
         ie1, ple1 = embed_ids([nxt])
         pid, oh, f, s = host_pos(cur)
         lg1, key_bufs, val_bufs = DEC(ie1, ple1, pid, oh, f, s, key_bufs, val_bufs)
         nxt = pick(lg1[0, 0], temperature, top_k, top_p); cur += 1; steps += 1
 
-def generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids):
+def generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids, timeout_s=None):
     """Non-streaming: drain the generator to a full id list. Call under LOCK."""
-    g = _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids)
+    g = _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids, timeout_s)
     ids, n0, finish = [], len(prompt_ids), "length"
     try:
         while True:
@@ -218,14 +228,14 @@ def _prep_chat(messages, stop):
         except Exception: pass
     return prompt_ids, stop_ids
 
-def run_chat(messages, max_new, temperature, top_k, top_p, stop):
+def run_chat(messages, max_new, temperature, top_k, top_p, stop, timeout_s=None):
     prompt_ids, stop_ids = _prep_chat(messages, stop)
     t_req = time.time()
     with LOCK:
-        gen, n0, finish = generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids)
+        gen, n0, finish = generate_ids(prompt_ids, max_new, temperature, top_k, top_p, stop_ids, timeout_s)
     text = tok.decode(gen, skip_special_tokens=True)
     dt = time.time() - t_req; ct = len(gen)
-    _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, tps=(ct / dt if dt > 0 else 0.0))
+    _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, to=(1 if finish == "timeout" else 0), tps=(ct / dt if dt > 0 else 0.0))
     return text, n0, ct, finish
 
 # warm up
@@ -292,10 +302,11 @@ class H(BaseHTTPRequestHandler):
             top_k = int(body.get("top_k", 0))
             top_p = float(body.get("top_p", 1.0 if gd else 0.95))
             stop = body.get("stop"); model = body.get("model", MODEL_NAME)
+            timeout_s = float(body["timeout"]) if body.get("timeout") else None
             if bool(body.get("stream")) and otype in ("chat", "text"):
-                self._stream(msgs, max_new, temp, top_k, top_p, stop, otype, model)
+                self._stream(msgs, max_new, temp, top_k, top_p, stop, otype, model, timeout_s)
             else:
-                text, pt, ct, finish = run_chat(msgs, max_new, temp, top_k, top_p, stop)
+                text, pt, ct, finish = run_chat(msgs, max_new, temp, top_k, top_p, stop, timeout_s)
                 self._completion(otype, text, pt, ct, finish, model, body.get("prompt", ""))
         except ValueError as e:
             _bump(err=1)
@@ -324,7 +335,7 @@ class H(BaseHTTPRequestHandler):
             self._send(200, {"prompt": prompt, "response": text, "prompt_tokens": pt,
                              "gen_tokens": ct, "finish_reason": finish})
 
-    def _stream(self, msgs, max_new, temp, top_k, top_p, stop, otype, model):
+    def _stream(self, msgs, max_new, temp, top_k, top_p, stop, otype, model, timeout_s=None):
         prompt_ids, stop_ids = _prep_chat(msgs, stop)
         if len(prompt_ids) > BUCKET:
             return self._send(400, {"error": {"message": f"prompt {len(prompt_ids)} tokens > BUCKET {BUCKET}"}})
@@ -346,7 +357,7 @@ class H(BaseHTTPRequestHandler):
         t_req = time.time(); ids = []; prev = ""; n0 = len(prompt_ids); finish = "length"
         try:
             with LOCK:
-                gen = _generate(prompt_ids, max_new, temp, top_k, top_p, stop_ids)
+                gen = _generate(prompt_ids, max_new, temp, top_k, top_p, stop_ids, timeout_s)
                 try:
                     while True:
                         ids.append(next(gen))
@@ -358,11 +369,28 @@ class H(BaseHTTPRequestHandler):
             sse(chunk(finish=finish))
             self.wfile.write(b"data: [DONE]\n\n"); self.wfile.flush()
             dt = time.time() - t_req; ct = len(ids)
-            _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, tps=(ct / dt if dt > 0 else 0.0))
+            _bump(reqs=1, ptoks=n0, ctoks=ct, secs=dt, to=(1 if finish == "timeout" else 0), tps=(ct / dt if dt > 0 else 0.0))
         except (BrokenPipeError, ConnectionResetError):
             _bump(reqs=1, ptoks=n0, ctoks=len(ids), secs=time.time() - t_req)   # client disconnected
     def log_message(self, *a): pass
 
 threading.Thread(target=_watch_spot, daemon=True).start()
-print(f"spot-interruption watcher on; request queue max={MAX_QUEUE}; SSE streaming enabled", flush=True)
-ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()
+_HTTPD = ThreadingHTTPServer(("0.0.0.0", PORT), H)
+
+def _graceful_term(signum, frame):
+    print(f"signal {signum} — draining (up to {GRACE_SECONDS}s for in-flight), then shutting down", flush=True)
+    _DRAINING.set()                       # 503 on new requests
+    def _drain_then_stop():
+        end = time.time() + GRACE_SECONDS
+        while _INFLIGHT[0] > 0 and time.time() < end:
+            time.sleep(0.2)
+        _HTTPD.shutdown()                 # unblocks serve_forever (called from another thread)
+    threading.Thread(target=_drain_then_stop, daemon=True).start()
+signal.signal(signal.SIGTERM, _graceful_term)
+
+print(f"spot+SIGTERM drain on; queue max={MAX_QUEUE}; gen timeout {GEN_TIMEOUT}s; SSE streaming enabled", flush=True)
+try:
+    _HTTPD.serve_forever()
+except KeyboardInterrupt:
+    pass
+print("server stopped", flush=True)
