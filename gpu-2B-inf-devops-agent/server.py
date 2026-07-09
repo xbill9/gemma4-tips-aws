@@ -394,9 +394,13 @@ def _get_inferentia_user_data(model_path: str, hf_token_expr: str = "", instance
     neffs + weights + server and exposes /v1/chat/completions, /v1/completions, /v1/models, /generate,
     /health on :8080. `model_path`/`hf_token_expr` are unused (the image is self-contained).
     """
-    # Slim server (host-only bf16 embeddings, ~6 GB) fits inf2.xlarge's 16 GB host RAM; the full
-    # server targets the big-RAM 8xlarge. Both need swap for the ~14.5 GB neff-load peak.
-    optb_image = "xbill9/gemma4-optb:slim" if instance_type.strip().lower() in ("inf2.xlarge", "inf2.2xlarge") else "xbill9/gemma4-optb:latest"
+    # TP=2 + KV-aliasing build (~59-72 tok/s across both NeuronCores) — the fast default.
+    # tp2-slim = slim host embeddings (bf16, ~6 GB): fits the 16 GB inf2.xlarge AND runs fine on
+    # the big-RAM 8xlarge (just doesn't use the extra RAM), so ONE image works everywhere.
+    # ~73 GB image (fits the 300 GB root below), uses the 48 GB swap for the neff-load peak on
+    # small hosts, and MUST run with --ipc=host (parallel_model_load). Supersedes the single-core
+    # :slim/:latest (~25 tok/s). For a marginally faster host load on 8xlarge, :tp2-2048 also works.
+    optb_image = "xbill9/gemma4-optb:tp2-slim"
 
     user_data = f"""#!/bin/bash
 # Install and start SSM agent (if not present) and add SSH key
@@ -500,8 +504,9 @@ chmod -R 777 /home/ubuntu/.cache
 echo "Pulling Option B image {optb_image} ..."
 for i in $(seq 1 12); do docker pull {optb_image} && break; sleep 20; done
 docker rm -f gemma-optb 2>/dev/null || true
-docker run -d --name gemma-optb --restart unless-stopped $devices -p 8080:8080 {optb_image}
-echo "Option B server starting on :8080 (OpenAI-compatible; ~100s warmup)."
+# --ipc=host is required for the TP build (neuronx-distributed parallel_model_load).
+docker run -d --name gemma-optb --restart unless-stopped --ipc=host $devices -p 8080:8080 {optb_image}
+echo "Option B TP server starting on :8080 (OpenAI-compatible; ~80-210s warmup incl. on-device graph load)."
 """
     return user_data
 
