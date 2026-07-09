@@ -1,4 +1,4 @@
-# 🤖 Gemini Workspace Context: AWS Inferentia 12B DevOps Agent
+# 🤖 Gemini Workspace Context: AWS Inferentia Gemma-4-E2B DevOps Agent
 
 https://docs.lmcache.ai/recipes/gemma4.html
 
@@ -40,11 +40,11 @@ to authenticate to aws run the save-aws-creds.sh
 
 This agent targets AWS deployments utilizing:
 - **Default Region**: `us-east-1` (configurable via `AWS_DEFAULT_REGION`)
-- **Default Model**: `google/gemma-4-12B-it` (configurable via `MODEL_NAME`)
+- **Default Model**: `google/gemma-4-E2B-it` (configurable via `MODEL_NAME`)
 - **Default S3 Bucket**: `vllm-models-bucket` (configurable via `AWS_BUCKET_NAME`)
-- **Default Service Name**: `inferentia-12b-devops-agent`
+- **Default Service Name**: `gpu-2b-qat-inf-devops-agent`
 
-To serve `google/gemma-4-12B-it` using vLLM on AWS Inferentia, you must use the AWS Neuron SDK-compatible container image.
+To serve `google/gemma-4-E2B-it` using vLLM on AWS Inferentia, you must use the AWS Neuron SDK-compatible container image.
 
 ### 💡 AWS Inferentia2 Deployment & Cost Characteristics
 AWS Inferentia2 chips are purpose-built for deep learning inference workloads and offer the best cost-per-token performance for the Gemma 4 family. 
@@ -59,7 +59,7 @@ AWS Inferentia2 chips are purpose-built for deep learning inference workloads an
   * Model compilation tracing takes 15–30 minutes on initial startup (unless pre-compiled artifacts are loaded via `NEURON_COMPILED_ARTIFACTS`).
   * Not all quantization formats are supported yet (recommend `neuron_quant` or native INT8/FP8 configurations).
 * **Instance Sizing Guidelines**:
-  * **`inf2.xlarge` / `inf2.8xlarge`**: Best for smaller parameters (e.g., `google/gemma-4-12B-it` with quantization).
+  * **`inf2.xlarge` / `inf2.8xlarge`**: Best for smaller parameters (e.g., `google/gemma-4-E2B-it` with quantization).
   * **`inf2.24xlarge` / `inf2.48xlarge`**: Required for larger models like `google/gemma-4-31B-it` to meet the high memory footprints of broader parameter counts and larger KV caches.
 
 
@@ -79,7 +79,7 @@ docker run -d --name vllm-server \
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \
   python3 -m vllm.entrypoints.openai.api_server \
-  --model google/gemma-4-12B-it \
+  --model google/gemma-4-E2B-it \
   --quantization neuron_quant \
   --max-model-len 16384 \
   --tensor-parallel-size 2 \
@@ -110,33 +110,33 @@ docker run -d --name vllm-server \
 
 This agent exposes several tool categories via the Model Context Protocol (MCP):
 - **Deployment & Scaling:** 
-  - [deploy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L459)
-  - [destroy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L524)
-  - [status_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L550)
-  - [update_vllm_scaling](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L576)
-  - [get_vllm_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L393)
-  - [get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L606)
-  - [check_gpu_quotas](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L783)
+  - [deploy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L459)
+  - [destroy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L524)
+  - [status_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L550)
+  - [update_vllm_scaling](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L576)
+  - [get_vllm_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L393)
+  - [get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L606)
+  - [check_gpu_quotas](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L783)
 - **Model Transfer & Secret Management:** 
-  - [list_bucket_models](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L267)
-  - [save_hf_token](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L49)
-  - [get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L737)
-  - [get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L718)
+  - [list_bucket_models](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L267)
+  - [save_hf_token](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L49)
+  - [get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L737)
+  - [get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L718)
 - **System Monitoring & Health:** 
-  - [get_system_status](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L974)
-  - [get_endpoint](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1042)
-  - [get_model_details](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L935)
-  - [verify_model_health](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L824)
+  - [get_system_status](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L974)
+  - [get_endpoint](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1042)
+  - [get_model_details](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L935)
+  - [verify_model_health](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L824)
 - **Performance Benchmarking:** 
-  - [run_benchmark](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1066)
+  - [run_benchmark](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1066)
 - **Diagnostics & SRE Remediation:** 
-  - [query_gemma4](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L853)
-  - [query_gemma4_with_stats](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L872)
-  - [query_vllm](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L368)
-  - [analyze_cloud_logging](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L297)
-  - [analyze_gpu_logs](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1215)
-  - [suggest_sre_remediation](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L343)
-  - [get_help](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py#L1228)
+  - [query_gemma4](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L853)
+  - [query_gemma4_with_stats](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L872)
+  - [query_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L368)
+  - [analyze_cloud_logging](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L297)
+  - [analyze_gpu_logs](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1215)
+  - [suggest_sre_remediation](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L343)
+  - [get_help](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1228)
 
 ---
 
@@ -186,8 +186,8 @@ As an alternative to SSM-based automation, or if the AWS SSM agent is unresponsi
 ---
 
 ## 📚 Key Source Code File Locations
-- **MCP Server entrypoint**: [server.py](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/server.py)
-- **Test Suite**: [test_agent.py](file:///home/xbill/gemma4-tips-aws/gpu-12B-qat-inf-devops-agent/test_agent.py)
+- **MCP Server entrypoint**: [server.py](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py)
+- **Test Suite**: [test_agent.py](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/test_agent.py)
 
 ---
 
@@ -448,7 +448,7 @@ Start the OpenAI-compatible endpoint with a serving script:
 export VLLM_NEURON_FRAMEWORK="neuronx-distributed-inference"
 
 vllm serve \
-  --model google/gemma-4-12B-it \
+  --model google/gemma-4-E2B-it \
   --tensor-parallel-size 2 \
   --max-model-len 16384 \
   --max-num-seqs 8 \
@@ -461,7 +461,7 @@ vllm serve \
   }'
 ```
 
-*Note: For `google/gemma-4-12B-it` on dual neuron cores (like standard `inf2.8xlarge`), we set `--tensor-parallel-size 2`.*
+*Note: For `google/gemma-4-E2B-it` on dual neuron cores (like standard `inf2.8xlarge`), we set `--tensor-parallel-size 2`.*
 
 ---
 
@@ -473,7 +473,7 @@ Send a test request to your local running container/endpoint:
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-        "model": "google/gemma-4-12B-it",
+        "model": "google/gemma-4-E2B-it",
         "messages": [
           {"role": "system", "content": "You are a concise assistant."},
           {"role": "user", "content": "List three AWS Neuron optimization tips."}
@@ -527,7 +527,7 @@ export NEURON_COMPILED_ARTIFACTS="./neuron_compiled_models/gemma4-12b"
 #### 2. Enable prefix caching for multi-turn conversations:
 ```bash
 vllm serve \
-  --model google/gemma-4-12B-it \
+  --model google/gemma-4-E2B-it \
   --tensor-parallel-size 2 \
   --max-model-len 1024 \
   --max-num-seqs 8 \
