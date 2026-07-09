@@ -16,9 +16,9 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP="/workspace/real-gemma4-E2B-it"; TP=2
+MP=os.environ.get("MODEL_DIR","/workspace/real-gemma4-E2B-it"); TP=int(os.environ.get("TP_DEGREE","2"))
 MAX=int(os.environ.get("KV_MAX","2048")); BUCKET=int(os.environ.get("KV_BUCKET","512"))
-PORT=int(os.environ.get("PORT","8080")); MODEL_NAME="gemma-4-E2B-it"
+PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E2B-it")
 PRE_DIR=os.environ.get("TPA_PRE","/workspace/tpa_pre"); DEC_DIR=os.environ.get("TPA_DEC","/workspace/tpa_dec")
 NEG_INF=float("-inf")
 MAX_QUEUE=int(os.environ.get("MAX_QUEUE","8"))          # max concurrent+queued requests -> 429
