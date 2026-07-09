@@ -12,8 +12,21 @@ PORT=int(os.environ.get("PORT","8080")); MODEL_NAME="gemma-4-E2B-it"
 PRE_DIR=os.environ.get("TPA_PRE","/workspace/tpa_pre"); DEC_DIR=os.environ.get("TPA_DEC","/workspace/tpa_dec")
 LOCK=threading.Lock(); READY=threading.Event()
 
+def sp_now():
+    # Fetch the CURRENT per-rank aliased KV state params. Must be read AFTER the decode
+    # model's first forward: ParallelModel._load() calls move_trace_to_device(), which
+    # REPLACES each states._parameters[name] with a NEW privateuseone (device) tensor. Params
+    # captured before that first forward are orphaned CPU tensors — writing to them never
+    # reaches the device (the req1-ok / req2+-leak bug). Re-reading here returns the live
+    # device-resident params so the per-request reseed actually clears prior KV.
+    out=[]
+    for r in range(TP):
+        s=[(int(''.join(c for c in n if c.isdigit())),p) for n,p in dec.models[r].named_parameters() if n.startswith("states.")]
+        out.append([p for _,p in sorted(s,key=lambda x:x[0])])
+    return out
+
 def boot():
-    global torch, tok, lang, NONSHARED, LINFO, SW, EOS, pre, dec, SP_RANK, NK, NEG
+    global torch, tok, lang, NONSHARED, LINFO, SW, EOS, pre, dec, NK, NEG
     import torch
     from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
     from neuronx_distributed.trace import parallel_model_load
@@ -29,11 +42,13 @@ def boot():
     NK=len(NONSHARED)
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
     t=time.time(); pre=parallel_model_load(PRE_DIR); dec=parallel_model_load(DEC_DIR)
-    def sp(r):
-        s=[(int(''.join(c for c in n if c.isdigit())),p) for n,p in dec.models[r].named_parameters() if n.startswith("states.")]
-        return [p for _,p in sorted(s,key=lambda x:x[0])]
-    SP_RANK=[sp(r) for r in range(TP)]
-    print(f"READY in {round(time.time()-t,1)}s (load) — TP+alias, MAX={MAX} BUCKET={BUCKET}",flush=True); READY.set()
+    # Warm up: the first pre()/dec() forward triggers ParallelModel._load() +
+    # move_trace_to_device (the ~45s on-device graph load) AND swaps state params to device.
+    # Doing it here (not on the first user request) keeps request latency flat and makes
+    # sp_now() return device-resident params from request #1 onward.
+    warm=tok.apply_chat_template([{"role":"user","content":"Hi"}],add_generation_prompt=True,return_tensors="pt",return_dict=True)["input_ids"][0].tolist()
+    generate(warm,3)
+    print(f"READY in {round(time.time()-t,1)}s (load+warmup) — TP+alias, MAX={MAX} BUCKET={BUCKET}",flush=True); READY.set()
 
 def embed_ids(idl):
     ids=torch.tensor([idl])
@@ -48,11 +63,12 @@ def generate(prompt_ids, max_new):
     prompt=prompt_ids[:BUCKET]; n0=len(prompt)
     pad=prompt+[0]*(BUCKET-n0); ie,ple=embed_ids(pad); am=torch.tensor([[1]*n0+[0]*(BUCKET-n0)])
     lg,ks,vs=pre(ie,am,ple); first=int(lg[0,n0-1].argmax())
+    SP=sp_now()  # live device-resident params (see sp_now docstring) — reseed clears prior KV
     for r in range(TP):
         for j in range(NK):
             sk=torch.zeros(1,LINFO[NONSHARED[j]][0],MAX,LINFO[NONSHARED[j]][1]); sk[:,:,:n0,:]=ks[j][:,:,:n0,:]
             sv=torch.zeros(1,LINFO[NONSHARED[j]][0],MAX,LINFO[NONSHARED[j]][1]); sv[:,:,:n0,:]=vs[j][:,:,:n0,:]
-            SP_RANK[r][j].data.copy_(sk); SP_RANK[r][NK+j].data.copy_(sv)
+            SP[r][j].data.copy_(sk); SP[r][NK+j].data.copy_(sv)
     seq=[first]; cur=n0
     cap=min(max_new, MAX-n0-1)
     for _ in range(max(cap,0)):
