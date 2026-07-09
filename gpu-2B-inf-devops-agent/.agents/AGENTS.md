@@ -70,7 +70,7 @@ Gemma 4's hybrid attention architecture alternates standard sliding-window layer
 
 ## 💾 3. Custom Native Quantization & Context Bounds
 
-When serving larger model parameter counts (like Gemma 4 2B) on tighter physical on-chip memory limits (such as `inf2.xlarge` with exactly one `/dev/neuron0` device containing 2 cores and 32GB total HBM), standard unquantized BF16 execution will overflow memory during staging.
+When serving larger model parameter counts (like Gemma 4 12B) on tighter physical on-chip memory limits (such as `inf2.xlarge` with exactly one `/dev/neuron0` device containing 2 cores and 32GB total HBM), standard unquantized BF16 execution will overflow memory during staging.
 
 To safely compress memory allocations and serve stably, we outline the native configuration and the fallback legacy workaround.
 
@@ -81,7 +81,7 @@ By default, the AWS Neuron SDK's Distributed Inference (NxD) library handles qua
    ```bash
    # Pre-compilation with AMP (Automatic Mixed Precision) or native quantization
    python -m transformer_neuronx.export \
-     --model google/gemma-4-E2B-it \
+     --model google/gemma-4-12b-it \
      --batch_size 1 \
      --amp bf16 \
      --output_dir ./gemma4_compiled_graph
@@ -161,10 +161,10 @@ Deploying or launching containers without these overrides on tight resource cons
 ## 💸 5. Strict AWS Cost Containment Guardrails
 
 To prevent excessive cloud spending and comply with budget boundaries, we must maintain a strict single-active-host boundary per project per region.
- 
+
 * **Single Host Constraint**: **Never allow more than one AWS EC2 instance to run concurrently per project per region** for serving or DevOps agents.
-* **Pre-Provision Verification**: Before starting or launching any new EC2 resources (via scripts or `deploy_vllm` tools), always invoke `status_ec2` or describe active instances in the target region for the project.
-* **Immediate Decommission**: If a redundant instance is discovered in a `running` state in the target region for the project (e.g. during a hot-swap or automated recovery loop), immediately call `terminate_instances` on the unused instance.
+* **Pre-Provision Verification**: Before starting or launching any new EC2 resources (via scripts or `deploy_vllm` tools), always invoke `status_ec2` or describe active instances.
+* **Immediate Decommission**: If a redundant instance is discovered in a `running` state (e.g. during a hot-swap or automated recovery loop), immediately call `terminate_instances` on the unused instance.
 
 ---
 

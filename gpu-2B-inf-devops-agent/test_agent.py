@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 # Configure mock environment variables before importing server to force AWS code path
 os.environ["AWS_ACCESS_KEY_ID"] = "mock-key"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "mock-secret"
-os.environ["AWS_DEFAULT_REGION"] = "us-east-2"
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 from server import mcp
 
@@ -90,7 +90,7 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
                 {
                     "SubnetId": "subnet-123",
                     "VpcId": "vpc-abc",
-                    "AvailabilityZone": "us-east-2b",
+                    "AvailabilityZone": "us-east-1b",
                 }
             ]
         }
@@ -237,8 +237,8 @@ class TestDevOpsAgent(unittest.IsolatedAsyncioTestCase):
             "Quota": {"QuotaName": "Running On-Demand G and VT instances", "Value": 8.0, "Adjustable": True}
         }
 
-        result = check_gpu_quotas(region="us-east-2")
-        self.assertIn("AWS EC2 Inferentia Quotas for region `us-east-2`", result)
+        result = check_gpu_quotas(region="us-east-1")
+        self.assertIn("AWS EC2 Inferentia Quotas for region `us-east-1`", result)
         self.assertIn("Running On-Demand G and VT instances", result)
         self.assertIn("Limit: `8.0`", result)
 

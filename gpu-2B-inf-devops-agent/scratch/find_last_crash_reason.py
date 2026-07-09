@@ -15,7 +15,7 @@ def main():
         os.environ[k] = v
 
     ssm = boto3.client('ssm', region_name='us-east-1')
-    instance_id = "i-08dc36bcfb8241ee5"
+    instance_id = "i-07ea776f2156f074a"
     
     print("Fetching last 1000 lines of docker logs...")
     res = ssm.send_command(
@@ -51,13 +51,16 @@ def main():
                     if restart_indices:
                         last_idx = restart_indices[-1]
                         print(f"Last restart boundary is at line {last_idx}")
-                        # Print 40 lines before the last restart to see the traceback of the crash
                         print("=== BACKTRACE ===")
                         for idx in range(max(0, last_idx - 60), last_idx):
                             print(lines[idx])
                         print("=================")
                     else:
-                        print("No restart boundary found in the last 1000 lines.")
+                        print("No subsequent restart boundary found. Printing last 100 lines:")
+                        print("=== LAST 100 LINES ===")
+                        for idx in range(max(0, len(lines) - 100), len(lines)):
+                            print(lines[idx])
+                        print("=====================")
                 break
         except Exception as e:
             print(f"Error: {e}")

@@ -5,7 +5,7 @@ import server
 
 async def main():
     hf_token = await server.get_secret() or ""
-    ssm = boto3.client('ssm', region_name='us-east-2')
+    ssm = boto3.client('ssm', region_name='us-west-2')
     
     container_script = """#!/bin/bash
 set -e
@@ -33,11 +33,11 @@ INNER_EOF
 
 echo "Starting vLLM Server..."
 python3 -m vllm.entrypoints.openai.api_server \\
-  --model google/gemma-4-E2B-it \\
+  --model google/gemma-4-12B-it \\
   --quantization neuron_quant \\
-  --max-model-len 1024 \\
+  --max-model-len 16384 \\
   --tensor-parallel-size 2 \\
-  --max-num-seqs 2 \\
+  --max-num-seqs 8 \\
   --async-scheduling \\
   --block-size 16 \\
   --host 0.0.0.0 \\

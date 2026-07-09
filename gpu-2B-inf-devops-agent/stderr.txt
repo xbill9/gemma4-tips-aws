@@ -1,2 +1,0 @@
-Error response from daemon: No such container: vllm-server
-failed to run commands: exit status 1

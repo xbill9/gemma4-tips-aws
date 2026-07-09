@@ -4,7 +4,7 @@ import os
 from huggingface_hub import snapshot_download
 
 
-def download_gemma(repo_id: str = "google/gemma-4-E2B-it"):
+def download_gemma(repo_id: str = "google/gemma-4-12B-it-qat-w4a16-ct"):
     """Downloads Gemma weights using huggingface_hub."""
     print(f"🚀 Downloading {repo_id} from Hugging Face...")
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--repo-id",
         type=str,
-        default="google/gemma-4-E2B-it",
+        default="google/gemma-4-12B-it-qat-w4a16-ct",
         help="Hugging Face model repo ID",
     )
     args = parser.parse_args()

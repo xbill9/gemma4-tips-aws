@@ -1,6 +1,6 @@
 # 📊 Gemma 4 QAT vLLM AWS EC2 Concurrency Benchmark Report
 
-This report presents performance benchmark results for the self-hosted **Gemma 4 4B** model (`google/gemma-4-E4B-it`) deployed on an **AWS EC2 `g6.2xlarge`** instance (1 x NVIDIA L4 GPU, 24GB VRAM) in the `us-east-1` region.
+This report presents performance benchmark results for the self-hosted **Gemma 4 12B QAT (Quantization-Aware Training)** model (`google/gemma-4-12B-it-qat-w4a16-ct`) deployed on an **AWS EC2 `g6.2xlarge`** instance (1 x NVIDIA L4 GPU, 24GB VRAM) in the `us-east-1` region.
 
 The benchmark sweeps across a 2D grid of **concurrency levels** (1 to 2048 concurrent users) and **context window sizes** (4 to 16,384 tokens).
 
@@ -14,7 +14,7 @@ This chart shows the latency scaling and request throughput under concurrent loa
 ![Concurrency Sweep Chart](./benchmark_chart.png)
 
 ### 2. Model Comparison: Standard vs. QAT
-This chart compares the serving characteristics of the Standard 4B model (using FP8 quantization) and the optimized 4B model.
+This chart compares the serving characteristics of the Standard 12B model (using FP8 quantization) and the QAT 12B model (INT4 quantization).
 
 ![Model Comparison Chart](./comparison_chart.png)
 

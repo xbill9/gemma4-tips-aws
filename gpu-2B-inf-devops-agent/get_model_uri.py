@@ -1,4 +1,4 @@
-def get_model_artifact_uri(project_id, publisher="google", model="gemma-4-E2B-it"):
+def get_model_artifact_uri(project_id, publisher="google", model="gemma-4-12B-it-qat-w4a16-ct"):
     from google.cloud.aiplatform_v1.services.model_garden_service import (
         ModelGardenServiceClient,
     )
@@ -50,4 +50,4 @@ if __name__ == "__main__":
     import os
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "aisprint-491218")
-    get_model_artifact_uri(project_id, model="gemma-4@gemma-4-E2B-it")
+    get_model_artifact_uri(project_id, model="gemma-4@gemma-4-12B-it-qat-w4a16-ct")

@@ -29,9 +29,9 @@ docker run -d --name vllm-server \
   python3 -m vllm.entrypoints.openai.api_server \
   --model google/gemma-4-E2B-it \
   --quantization neuron_quant \
-  --max-model-len 1024 \
+  --max-model-len 16384 \
   --tensor-parallel-size 2 \
-  --max-num-seqs 2 \
+  --max-num-seqs 8 \
   --enable-auto-tool-choice \
   --tool-call-parser gemma4 \
   --reasoning-parser gemma4 \

@@ -460,6 +460,19 @@ class KVCacheManager(nn.Module):
             latest_k = torch.nn.functional.pad(latest_k, (0, 512 - latest_k.shape[-1]))
         if latest_v.shape[-1] < 512:
             latest_v = torch.nn.functional.pad(latest_v, (0, 512 - latest_v.shape[-1]))
+        is_swa_layer = (idx + 1) % 6 != 0
+        if is_swa_layer and self.sliding_window:
+            seq_len_dim = 2 if not self.k_cache_transposed else 3
+            current_seq_len = latest_k.shape[seq_len_dim]
+            if current_seq_len > self.sliding_window:
+                if not self.k_cache_transposed:
+                    latest_k = latest_k[:, :, -self.sliding_window:, :]
+                else:
+                    latest_k = latest_k[:, :, :, -self.sliding_window:]
+                latest_v = latest_v[:, :, -self.sliding_window:, :]
+                position_ids = position_ids[:, -self.sliding_window:]
+                if scatter_index is not None:
+                    scatter_index = scatter_index[:, -self.sliding_window:]
 
         if self.kv_quant_config:
             latest_k = self._quantize_cache(latest_k, idx, is_key=True)

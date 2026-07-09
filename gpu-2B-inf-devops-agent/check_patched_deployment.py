@@ -14,10 +14,11 @@ for k, v in creds.items():
     os.environ[k] = v
 
 ssm = boto3.client("ssm", region_name="us-east-1")
-instance_id = "i-08dc36bcfb8241ee5"
+instance_id = "i-03a304a0cd999dcef"
 
 commands = [
-    "echo 'test'"
+    "docker ps -a",
+    "docker logs --tail 100 vllm-server 2>&1"
 ]
 
 response = ssm.send_command(

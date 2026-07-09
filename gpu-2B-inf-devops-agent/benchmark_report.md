@@ -2,7 +2,7 @@
 
 Generated at: 2026-06-15 18:02:36
 Endpoint: `http://44.204.128.2:8080`
-Model: `google/gemma-4-E4B-it` (NVIDIA L4 GPU Cloud Run)
+Model: `google/gemma-4-12B-it-qat-w4a16-ct` (NVIDIA L4 GPU Cloud Run)
 
 ## 🕒 Average Latency Matrix (seconds)
 

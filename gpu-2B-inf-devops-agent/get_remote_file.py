@@ -1,20 +1,17 @@
+import sys
 import boto3
-import os
 import time
+import base64
 
-creds = {}
-if os.path.exists(".aws_creds"):
-    with open(".aws_creds", "r") as f:
-        for line in f:
-            if "=" in line:
-                k, v = line.strip().split("=", 1)
-                creds[k] = v
+if len(sys.argv) != 3:
+    print("Usage: python3 get_remote_file.py <remote_path> <local_path>")
+    sys.exit(1)
 
-for k, v in creds.items():
-    os.environ[k] = v
+remote_path = sys.argv[1]
+local_path = sys.argv[2]
 
-ssm = boto3.client("ssm", region_name="us-east-1")
-instance_id = "i-07ea776f2156f074a"
+ssm = boto3.client('ssm', region_name='us-east-1')
+instance_id = "i-0af2ceb15e7807e96"
 
 def run_ssm_command(commands):
     response = ssm.send_command(
@@ -30,12 +27,29 @@ def run_ssm_command(commands):
         if status in ["Success", "Failed", "Cancelled", "TimedOut"]:
             return status, result.get("StandardOutputContent", ""), result.get("StandardErrorContent", "")
 
-commands = [
-    "docker exec vllm-server cat /opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/gpt_oss_kv_cache_manager.py"
-]
-status, stdout, stderr = run_ssm_command(commands)
+chunk_size = 15000
+start = 0
+file_data = b""
 
-with open("gpt_oss_kv_cache_manager_remote.py", "w") as f:
-    f.write(stdout)
+print(f"Downloading {remote_path} to {local_path} in chunks...")
+while True:
+    cmd = f"docker exec vllm-server python3 -c \"import base64; f = open('{remote_path}', 'rb'); f.seek({start}); chunk = f.read({chunk_size}); print(base64.b64encode(chunk).decode()); f.close()\""
+    status, stdout, stderr = run_ssm_command([cmd])
+    if status != "Success":
+        print(f"Failed to fetch chunk at {start}. Status: {status}")
+        print("Error:", stderr)
+        sys.exit(1)
+    
+    b64_data = stdout.strip()
+    chunk_bytes = base64.b64decode(b64_data)
+    if not chunk_bytes:
+        break
+    file_data += chunk_bytes
+    if len(chunk_bytes) < chunk_size:
+        break
+    start += chunk_size
 
-print("Saved gpt_oss_kv_cache_manager_remote.py")
+with open(local_path, "wb") as f:
+    f.write(file_data)
+
+print(f"Saved {local_path} successfully. Total size: {len(file_data)} bytes")

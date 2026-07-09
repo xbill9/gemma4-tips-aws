@@ -86,6 +86,13 @@ def get_updated_configs(config: InferenceConfig):
 
         if not swa_layer:
             updated_config.sliding_window = None
+            updated_config.head_dim = getattr(config, "global_head_dim", 512)
+            updated_config.num_key_value_heads = getattr(config, "num_global_key_value_heads", 1)
+            updated_config.neuron_config.fused_qkv = False
+        else:
+            updated_config.sliding_window = 512
+            updated_config.head_dim = getattr(config, "head_dim", 256)
+            updated_config.num_key_value_heads = getattr(config, "num_key_value_heads", 8)
 
         updated_configs.append(updated_config)
 
@@ -127,6 +134,8 @@ class Gemma3InferenceConfig(InferenceConfig):
                 val = getattr(text_config, attribute, None)
                 if val is None and attribute == "query_pre_attn_scalar":
                     val = getattr(text_config, "head_dim", 256)
+                if attribute == "sliding_window" and val is not None:
+                    val = 512
                 setattr(self, attribute, val)
 
         # These are not defined in the standard HF Gemma3 config json
@@ -168,8 +177,11 @@ class NeuronGemma3Attention(NeuronAttentionBase):
             base=config.local_rope_theta,
         )
 
+        global_dim = head_dim
+        if config.sliding_window is not None:
+            global_dim = int(getattr(config, "global_head_dim", 512) * 0.25)
         global_rotary_emb = RotaryEmbedding(
-            dim=head_dim,
+            dim=global_dim,
             max_position_embeddings=config.max_position_embeddings,
             base=config.global_rope_theta,
             factor=config.rope_scaling,
@@ -205,7 +217,7 @@ class NeuronGemma3DecoderLayer(nn.Module):
     def __init__(self, config: Gemma3InferenceConfig, layer_idx: int):
         super().__init__()
 
-        self.is_sliding_window_attention = config.sliding_window is not None
+        self.is_sliding_window_attention = config.sliding_window is not None and (layer_idx + 1) % 6 != 0
         self.layer_idx = layer_idx
         self.hidden_size = config.hidden_size
         self.query_pre_attn_scalar = config.query_pre_attn_scalar
@@ -412,17 +424,6 @@ class NeuronGemma3ForCausalLM(NeuronBaseForCausalLM):
             # Determine if this layer is a sliding window layer
             swa_layer = (i + 1) % 6 != 0
             is_fused_layer = config.neuron_config.fused_qkv and swa_layer
-
-            if not swa_layer:
-                # Pad global layer key/value weights from 512 (1 global head * 512 dim) to 4096 (8 heads * 512 dim)
-                for proj in ["k_proj", "v_proj"]:
-                    key = f"layers.{i}.self_attn.{proj}.weight"
-                    if key in state_dict:
-                        weight = state_dict[key]
-                        if weight.shape[0] < 4096:
-                            padded_weight = torch.zeros((4096, weight.shape[1]), dtype=weight.dtype, device=weight.device)
-                            padded_weight[:weight.shape[0], :] = weight
-                            state_dict[key] = padded_weight
 
             if is_fused_layer:
                 attr = "weight"  # Will have to set this to "scale" if we pursue quantized weights
