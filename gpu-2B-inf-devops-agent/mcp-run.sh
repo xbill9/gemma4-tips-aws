@@ -5,6 +5,7 @@
 # boto3 ranks env creds above profiles, so they expire in-process and a /mcp reconnect just
 # re-inherits the same stale env. Fix: unset them, then use the gemma-mcp profile whose
 # credential_process re-exports the default profile's creds on demand (refreshes on expiry).
+export PATH="/usr/local/bin:/home/xbill/.pyenv/shims:$PATH"   # ensure aws + python3 resolve
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 export AWS_PROFILE=gemma-mcp
 exec python3 /home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py
