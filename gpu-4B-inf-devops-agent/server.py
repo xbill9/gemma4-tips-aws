@@ -48,12 +48,12 @@ boto3.client = patched_boto3_client
 
 
 # Configuration
-AWS_REGION = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-west-2"))
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-1"))
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "vllm-models-bucket")
 
 # The URL of the self-hosted vLLM service on AWS EC2
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL")
-MODEL_NAME = os.getenv("MODEL_NAME", "google/gemma-4-E4B-it")
+MODEL_NAME = os.getenv("MODEL_NAME", "google/gemma-4-E2B-it")
 HF_SECRET_ID = "hf-token"
 
 
@@ -104,7 +104,7 @@ async def save_hf_token(token: str) -> str:
         return "❌ Failed to save token to AWS Secrets Manager."
 
 
-DEFAULT_SERVICE_NAME = "inferentia-4b-devops-agent"
+DEFAULT_SERVICE_NAME = "inferentia-2b-devops-agent"
 
 
 def discover_vllm_url(service_name: str = DEFAULT_SERVICE_NAME) -> Optional[str]:
@@ -189,38 +189,34 @@ async def get_active_model_name(client: AsyncOpenAI) -> str:
 
 @mcp.resource("config://vllm-deployment-template")
 def get_deployment_template() -> str:
-    """Returns a base template for AWS EC2 Inferentia vLLM deployment."""
-    return """
-# AWS EC2 vLLM Deployment Template
-# Required Instance: inf2.xlarge (1x AWS Inferentia2 Device, 32GB HBM)
-# Recommended AMI: Deep Learning AMI Neuron (Ubuntu 22.04)
+    """Returns a base template for AWS EC2 Inferentia deployment of the Option B (optb) server.
 
-InstanceType: inf2.xlarge
-ImageId: ami-01807ad0e6484b5a8 (us-west-2)
+    Option B replaces vLLM/NxD (gibberish on Gemma-4's cross-layer KV-sharing) with a
+    torch_neuronx two-graph KV-cache server. The public Docker Hub image is self-contained
+    (weights + neffs + server baked in) and serves an OpenAI-compatible API on :8080.
+    """
+    return """
+# AWS EC2 Inferentia Deployment Template (Option B / optb server, NOT vLLM)
+# Instance: inf2.xlarge (16GB host RAM, needs swap) with the :slim image,
+#           OR inf2.8xlarge (128GB host RAM) with the :latest image.
+# AMI: any Deep Learning Base Neuron AMI (Ubuntu 22.04) — only the Neuron driver + docker are needed.
+
+InstanceType: inf2.8xlarge        # or inf2.xlarge (use the :slim image)
 Ports:
   - Container Port: 8080
   - Host Port: 8080
 
-Docker Run Command:
-docker run -d --name vllm-server \\
+# REQUIRED on a 16GB host (inf2.xlarge): add swap so the ~14.5GB neff-load peak doesn't OOM:
+#   fallocate -l 32G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+
+Docker Run Command (public image, no auth, weights+neffs baked in):
+docker run -d --name gemma-optb \\
   --device /dev/neuron0 \\
-  --ipc=host \\
-  --restart always \\
+  --restart unless-stopped \\
   -p 8080:8080 \\
-  -e HF_TOKEN=$HF_TOKEN \\
-  -e NEURON_CC_FLAGS="--model-type transformer" \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  python3 -m vllm.entrypoints.openai.api_server \\
-  --model google/gemma-4-E4B-it \\
-  --quantization neuron_quant \\
-  --max-model-len 16384 \\
-  --tensor-parallel-size 2 \\
-  --max-num-seqs 8 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
+  xbill9/gemma4-optb:latest        # inf2.8xlarge; use xbill9/gemma4-optb:slim on inf2.xlarge
+
+# Serves: /v1/chat/completions, /v1/completions, /v1/models, /generate, /health
 """
 
 
@@ -230,7 +226,7 @@ def get_vllm_endpoint(service_name: str = DEFAULT_SERVICE_NAME) -> Optional[str]
     Returns the current active vLLM endpoint URL.
 
     Args:
-        service_name: The service name or instance Name tag to describe (defaults to 'inferentia-4b-devops-agent').
+        service_name: The service name or instance Name tag to describe (defaults to 'gpu-2b-qat-inf-devops-agent').
     """
     if service_name == DEFAULT_SERVICE_NAME:
         return get_vllm_url()
@@ -390,8 +386,28 @@ async def query_vllm(prompt: str, max_tokens: int = 512, temperature: float = 0.
 
 
 
-def _get_inferentia_user_data(model_path: str, hf_token_expr: str) -> str:
-    return f"""#!/bin/bash
+def _get_inferentia_user_data(model_path: str, hf_token_expr: str = "", instance_type: str = "inf2.8xlarge") -> str:
+    """Cloud-init user-data that deploys the Option B (optb) OpenAI-compatible server.
+
+    Option B replaces vLLM/NxD (which emits gibberish for Gemma-4's cross-layer KV-sharing) with a
+    torch_neuronx-traced two-graph KV-cache server. The public Docker Hub image bakes in the compiled
+    neffs + weights + server and exposes /v1/chat/completions, /v1/completions, /v1/models, /generate,
+    /health on :8080. `model_path`/`hf_token_expr` are unused (the image is self-contained).
+    """
+    # TP=2 + KV-aliasing build (~59-72 tok/s across both NeuronCores) — the fast default.
+    # tp2-slim = slim host embeddings (bf16, ~6 GB): fits the 16 GB inf2.xlarge AND runs fine on
+    # the big-RAM 8xlarge (just doesn't use the extra RAM), so ONE image works everywhere.
+    # ~73 GB image (fits the 300 GB root below), uses the 48 GB swap for the neff-load peak on
+    # small hosts, and MUST run with --ipc=host (parallel_model_load). Supersedes the single-core
+    # :slim/:latest (~25 tok/s). For a marginally faster host load on 8xlarge, :tp2-2048 also works.
+    optb_image = "xbill9/gemma4-optb:tp2-slim"
+
+    user_data = f"""#!/bin/bash
+# Install and start SSM agent (if not present) and add SSH key
+snap install amazon-ssm-agent || true
+systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC5D8tcXzOYvDeIT2QHDUMdwOYqZQ6J6c8TXxfKCFo1q76Sf1tRW9ajeRhmVJW/KrimNWJegwuXnoFwoDLD6wKo7dY5/QrO66od2/QkcmSdn3pa1ALwPbzZpNKcwVT736wLdm/iFnVXBTqmNkZREsbq16d3fQiLvnyJ74kYzt23YMLkv27Ik16hQEbBcO/4Lp6B1tjqKwO0gtvSP5c3b3MQ3qjnNVjqnpYLvQZgkXsczWWgb3U8VADofpo902IMOYPLwz6wvKnt300DNEO7B5gKShbYkGThTkjeSDAaBmVte3GOd6L6fV7E8tKQNgXG3jyK0B7Vs2wJFVEANvXQQvsb' >> /home/ubuntu/.ssh/authorized_keys
+
 # 1. Resize root partition and filesystem to utilize full volume size
 echo "Starting root partition resize..."
 sudo growpart /dev/nvme0n1 1 || true
@@ -409,11 +425,10 @@ if ! command -v docker &> /dev/null; then
     systemctl enable docker
 fi
 
-# 2. Optimized Swap for 4B model on 16GB RAM (Option A)
-# Creating 16GB swap to handle 8GB weights + compilation overhead
+# 2. Optimized Swap for 2B model on 16GB RAM
 if [ ! -f /swapfile_large ]; then
-    echo "Creating 16GB optimized swap..."
-    fallocate -l 16G /swapfile_large
+    echo "Creating 48GB optimized swap..."
+    fallocate -l 48G /swapfile_large
     chmod 600 /swapfile_large
     mkswap /swapfile_large
     swapon /swapfile_large
@@ -423,9 +438,7 @@ fi
 # Tune virtual memory for heavy swapping
 sysctl -w vm.swappiness=100
 sysctl -w vm.vfs_cache_pressure=50
-# Allow OOM killer to be more aggressive with non-essential tasks
 echo 1 > /proc/sys/vm/oom_kill_allocating_task
-
 
 # Detect available Neuron devices
 devices=""
@@ -443,19 +456,37 @@ if [ $device_count -eq 0 ]; then
 fi
 tensor_parallel_size=$((device_count * 2))
 
-# Detect and mount secondary cache volume if present (wait up to 60s for attachment)
+# Detect and mount secondary cache volume if present
 echo "Waiting for secondary cache volume..."
-for i in {{1..60}}; do
-    CACHE_DEV=$(lsblk -rn -o NAME,MOUNTPOINT | grep -v "/$" | awk '$2=="" {{print "/dev/"$1}}' | head -n 1)
-    if [ -n "$CACHE_DEV" ]; then
-        echo "Detected potential cache volume: $CACHE_DEV"
-        if ! blkid "$CACHE_DEV"; then
-            echo "Formatting $CACHE_DEV..."
-            mkfs -t ext4 "$CACHE_DEV"
+for i in {{1..30}}; do
+    CACHE_DEV=""
+    CACHE_PART=""
+    for dev in $(lsblk -d -n -o NAME | grep -E "^(nvme|xvdf|sdf)" | grep -v "nvme0n1"); do
+        if ! lsblk -n -r "/dev/$dev" | grep -q /; then
+            if lsblk -n -r "/dev/$dev" | grep -q part; then
+                CACHE_PART="/dev/$(lsblk -n -r -o NAME,TYPE "/dev/$dev" | grep part | sort -k 4 -n | tail -n 1 | cut -d' ' -f1)"
+                CACHE_DEV="/dev/$dev"
+                break
+            else
+                CACHE_DEV="/dev/$dev"
+                break
+            fi
         fi
+    done
+    
+    if [ -n "$CACHE_DEV" ]; then
+        echo "Found secondary cache volume: $CACHE_DEV"
         mkdir -p /home/ubuntu/.cache
-        mount "$CACHE_DEV" /home/ubuntu/.cache
-        echo "$CACHE_DEV /home/ubuntu/.cache ext4 defaults,nofail 0 2" >> /etc/fstab
+        if [ -n "$CACHE_PART" ]; then
+            echo "Mounting existing partition: $CACHE_PART"
+            mount "$CACHE_PART" /home/ubuntu/.cache
+            echo "$CACHE_PART /home/ubuntu/.cache ext4 defaults,nofail 0 2" >> /etc/fstab
+        else
+            echo "Formatting and mounting clean disk: $CACHE_DEV"
+            mkfs.ext4 -F "$CACHE_DEV"
+            mount "$CACHE_DEV" /home/ubuntu/.cache
+            echo "$CACHE_DEV /home/ubuntu/.cache ext4 defaults,nofail 0 2" >> /etc/fstab
+        fi
         break
     fi
     sleep 1
@@ -465,249 +496,25 @@ done
 mkdir -p /home/ubuntu/.cache/huggingface /home/ubuntu/.cache/neuron
 chmod -R 777 /home/ubuntu/.cache
 
-# Write patch script to host
-cat << 'EOF' > /home/ubuntu/patch_transformers.py
-import os
+# (Option B image is self-contained: weights + neffs + server baked in; no patches / model download.)
 
-# 1. Patch transformers/utils/fx.py
-fx_path = "/opt/conda/lib/python3.12/site-packages/transformers/utils/fx.py"
-os.makedirs(os.path.dirname(fx_path), exist_ok=True)
-with open(fx_path, "w") as f:
-    f.write('''import torch.fx
 
-class HFTracer(torch.fx.Tracer):
-    pass
 
-def symbolic_trace(model, *args, **kwargs):
-    return torch.fx.symbolic_trace(model)
-''')
-print("Patched fx.py")
-
-# 2. Patch transformers/generation/utils.py
-gen_utils_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/utils.py"
-with open(gen_utils_path, "r") as f:
-    content = f.read()
-
-if "SampleDecoderOnlyOutput" not in content:
-    with open(gen_utils_path, "a") as f:
-        f.write("\\n\\nSampleDecoderOnlyOutput = GenerateDecoderOnlyOutput\\nSampleEncoderDecoderOutput = GenerateEncoderDecoderOutput\\n")
-    print("Patched generation/utils.py")
-else:
-    print("generation/utils.py already patched")
-
-# 3. Patch transformers/generation/__init__.py
-gen_init_path = "/opt/conda/lib/python3.12/site-packages/transformers/generation/__init__.py"
-with open(gen_init_path, "r") as f:
-    content = f.read()
-
-if "if TYPE_CHECKING:" in content:
-    content = content.replace(
-        "if TYPE_CHECKING:",
-        '_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n\\nif TYPE_CHECKING:'
-    )
-    print("Injected into _import_structure")
-else:
-    content += '\\n_import_structure["utils"].extend(["SampleDecoderOnlyOutput", "SampleEncoderDecoderOutput"])\\n'
-
-with open(gen_init_path, "w") as f:
-    f.write(content)
-print("Patched generation/__init__.py")
-
-# 4. Patch vllm_neuron constants to include Gemma4ForConditionalGeneration and Gemma4UnifiedForConditionalGeneration
-constants_path = "/opt/vllm/vllm_neuron/worker/constants.py"
-if os.path.exists(constants_path):
-    with open(constants_path, "r") as f:
-        content = f.read()
-    if "Gemma4ForConditionalGeneration" not in content:
-        content = content.replace(
-            "NEURON_MULTI_MODAL_MODELS = [",
-            "NEURON_MULTI_MODAL_MODELS = [\\n    'Gemma4UnifiedForConditionalGeneration',\\n    'Gemma4ForConditionalGeneration',"
-        )
-        with open(constants_path, "w") as f:
-            f.write(content)
-        print("Patched NEURON_MULTI_MODAL_MODELS in constants.py")
-
-# 5. Patch neuronx_distributed_inference constants to register gemma4 and gemma4unified
-constants_py_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/utils/constants.py"
-if os.path.exists(constants_py_path):
-    with open(constants_py_path, "r") as f:
-        content = f.read()
-    if "gemma4" not in content:
-        with open(constants_py_path, "a") as f:
-            f.write("\\n\\nMODEL_TYPES['gemma4'] = MODEL_TYPES['gemma3']\\nMODEL_TYPES['gemma4unified'] = MODEL_TYPES['gemma3']\\n")
-        print("Patched neuronx_distributed_inference constants.py")
-
-# 6. Patch gemma3 modeling to handle missing query_pre_attn_scalar (defaults to head_dim)
-gemma3_modeling_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/models/gemma3/modeling_gemma3.py"
-if os.path.exists(gemma3_modeling_path):
-    with open(gemma3_modeling_path, "r") as f:
-        content = f.read()
-    
-    old_target = "setattr(self, attribute, getattr(text_config, attribute))"
-    new_target = "setattr(self, attribute, getattr(text_config, attribute, None))"
-    if old_target in content:
-        content = content.replace(old_target, new_target)
-        
-    old_derived = "self.add_derived_config()"
-    new_derived = "if getattr(self, 'query_pre_attn_scalar', None) is None:\\n            self.query_pre_attn_scalar = self.head_dim\\n        self.add_derived_config()"
-    if old_derived in content and "query_pre_attn_scalar = self.head_dim" not in content:
-        content = content.replace(old_derived, new_derived)
-        
-    with open(gemma3_modeling_path, "w") as f:
-        f.write(content)
-    print("Patched modeling_gemma3.py query_pre_attn_scalar fallback")
-
-    # 6b. Patch gemma3 modeling convert_hf_to_neuron_state_dict to handle multimodal model keys
-    with open(gemma3_modeling_path, "r") as f:
-        content = f.read()
-    old_convert = 'if "model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model."): v for k, v in state_dict.items()}}'
-    new_convert = 'if "model.language_model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model.language_model."): v for k, v in state_dict.items()}}\\n        elif "model.norm.weight" in state_dict.keys():\\n            state_dict = {{k.removeprefix("model."): v for k, v in state_dict.items()}}'
-    if old_convert in content:
-        content = content.replace(old_convert, new_convert)
-        with open(gemma3_modeling_path, "w") as f:
-            f.write(content)
-        print("Patched convert_hf_to_neuron_state_dict for multimodal keys")
-
-# 7. Patch attention_base.py to disable flash attention if head_dim > 128
-attention_base_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/attention/attention_base.py"
-if os.path.exists(attention_base_path):
-    with open(attention_base_path, "r") as f:
-        content = f.read()
-    
-    old_code = "if self.attn_kernel_enabled is False:"
-    new_code = "if self.attn_kernel_enabled is False or self.head_dim > 128:"
-    if old_code in content and new_code not in content:
-        content = content.replace(old_code, new_code)
-        with open(attention_base_path, "w") as f:
-            f.write(content)
-        print("Patched attention_base.py to disable flash attention for head_dim > 128")
-
-# 8. Patch neuronx_distributed_inference kvcache utils & manager for Gemma 4 hybrid attention KV cache dimension matching
-kvcache_utils_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/utils.py"
-if os.path.exists(kvcache_utils_path):
-    with open(kvcache_utils_path, "r") as f:
-        content = f.read()
-    
-    # Patch dynamic_update_slice
-    old_dynamic = "def dynamic_update_slice(\\n    tensor: torch.Tensor, update: torch.Tensor, start_indices: List[torch.Tensor]\\n):"
-    new_dynamic = "def dynamic_update_slice(\\n    tensor: torch.Tensor, update: torch.Tensor, start_indices: List[torch.Tensor]\\n):\\n    if update.shape[-1] < tensor.shape[-1]:\\n        update = torch.nn.functional.pad(update, (0, tensor.shape[-1] - update.shape[-1]))"
-    
-    # Patch update_cache_const_indices
-    old_const = "    batch_indices = sequence_ids.view(-1, 1, 1).expand(-1, kv_heads, bucket_length).to(torch.int32)"
-    new_const = "    if updates.shape[-1] < d_head:\\n        updates = torch.nn.functional.pad(updates, (0, d_head - updates.shape[-1]))\\n    batch_indices = sequence_ids.view(-1, 1, 1).expand(-1, kv_heads, bucket_length).to(torch.int32)"
-    
-    old_pos = "    pos_indices = torch.arange(bucket_length).view(1, 1, -1).expand(batch_size, kv_heads, -1).to(torch.int32)"
-    new_pos = "    pos_indices = torch.arange(bucket_length).view(1, 1, -1).expand(batch_size, kv_heads, -1)\\n    if bucket_length > max_sequence_length:\\n        pos_indices = pos_indices % max_sequence_length\\n    pos_indices = pos_indices.to(torch.int32)"
-    
-    if old_dynamic in content and "torch.nn.functional.pad" not in content:
-        content = content.replace(old_dynamic, new_dynamic)
-    if old_const in content and "updates.shape[-1] < d_head" not in content:
-        content = content.replace(old_const, new_const)
-    if old_pos in content and "bucket_length > max_sequence_length" not in content:
-        content = content.replace(old_pos, new_pos)
-        
-    with open(kvcache_utils_path, "w") as f:
-        f.write(content)
-    print("Patched kvcache/utils.py for hybrid attention mismatch padding and 1006 safety")
-
-kv_cache_mgr_path = "/opt/conda/lib/python3.12/site-packages/neuronx_distributed_inference/modules/kvcache/kv_cache_manager.py"
-if os.path.exists(kv_cache_mgr_path):
-    with open(kv_cache_mgr_path, "r") as f:
-        content = f.read()
-        
-    # Target specifically the return within _fetch_cache method (which is indented by 8 spaces)
-    target_fetch = "        if self.is_kv_cache_tiled:\\n            k_cache = untile_cache(cache=k_cache, transposed=self.k_cache_transposed)\\n            v_cache = untile_cache(cache=v_cache, transposed=False)\\n\\n        return k_cache, v_cache"
-    replacement_fetch = "        if self.is_kv_cache_tiled:\\n            k_cache = untile_cache(cache=k_cache, transposed=self.k_cache_transposed)\\n            v_cache = untile_cache(cache=v_cache, transposed=False)\\n\\n        if (idx + 1) % 6 != 0:\\n            if k_cache.shape[-1] == 512:\\n                k_cache = k_cache[..., :256]\\n            if v_cache.shape[-1] == 512:\\n                v_cache = v_cache[..., :256]\\n        return k_cache, v_cache"
-    
-    if target_fetch in content and "k_cache.shape[-1] == 512" not in content:
-        content = content.replace(target_fetch, replacement_fetch)
-        with open(kv_cache_mgr_path, "w") as f:
-            f.write(content)
-        print("Patched kv_cache_manager.py for slicing retrieval on sliding-window layers")
-EOF
-
-# Write startup script to host
-cat << 'EOF' > /home/ubuntu/patch_and_run.sh
-#!/bin/bash
-set -e
-echo "Upgrading transformers..."
-pip install --upgrade transformers
-
-echo "Running python patcher for transformers..."
-python3 /patch_transformers.py
-
-echo "Registering neuron_quant quantization method in vLLM..."
-cat << 'INNER_EOF' >> /opt/conda/lib/python3.12/site-packages/vllm/model_executor/layers/quantization/__init__.py
-
-from vllm.model_executor.layers.quantization.base_config import QuantizationConfig
-from vllm.model_executor.layers.quantization import register_quantization_config
-import torch
-
-@register_quantization_config("neuron_quant")
-class NeuronQuantConfig(QuantizationConfig):
-    def get_name(self) -> str:
-        return "neuron_quant"
-
-    def get_supported_act_dtypes(self) -> list[torch.dtype]:
-        return [torch.float16, torch.bfloat16]
-
-    @classmethod
-    def get_min_capability(cls) -> int:
-        return 0
-
-    @staticmethod
-    def get_config_filenames() -> list[str]:
-        return []
-
-    @classmethod
-    def from_config(cls, config: dict) -> "NeuronQuantConfig":
-        return cls()
-
-    def get_quant_method(self, layer, prefix):
-        return None
-INNER_EOF
-
-echo "Starting vLLM Server with memory optimizations..."
-python3 -m vllm.entrypoints.openai.api_server \\
-  --model {model_path} \\
-  --quantization neuron_quant \\
-  --max-model-len 4096 \\
-  --tensor-parallel-size 2 \\
-  --max-num-seqs 4 \\
-  --swap-space 0 \\
-  --no-enable-prefix-caching \\
-  --max-num-batched-tokens 512 \\
-  --async-scheduling \\
-  --host 0.0.0.0 \\
-  --port 8080
-EOF
-chmod +x /home/ubuntu/patch_and_run.sh
-
-docker run -d --name vllm-server \\
-  --no-healthcheck \\
-  $devices \\
-  --ipc=host \\
-  --restart no \\
-  -p 8080:8080 \\
-  -e HF_TOKEN="{hf_token_expr}" \\
-  -e NEURON_CC_FLAGS="--model-type=gemma4 --enable-mixed-shapes=False --target=inf2" \\
-  -e NEURON_CORES_PER_WORKER=2 \\
-  -e NEURON_COMPILER_WORKERS=1 \\
-  -e VLLM_ENGINE_READY_TIMEOUT_S=1800 \\
-  -e VLLM_ENGINE_ITERATION_TIMEOUT_S=600 \\
-  -v /home/ubuntu/.cache/huggingface:/root/.cache/huggingface \\
-  -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \\
-  -v /home/ubuntu/patch_transformers.py:/patch_transformers.py \\
-  -v /home/ubuntu/patch_and_run.sh:/patch_and_run.sh \\
-  public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \\
-  bash /patch_and_run.sh
+# --- Option B (optb) server: pull the public Docker Hub image and run it. No vLLM, no patching. ---
+echo "Pulling Option B image {optb_image} ..."
+for i in $(seq 1 12); do docker pull {optb_image} && break; sleep 20; done
+docker rm -f gemma-optb 2>/dev/null || true
+# --ipc=host is required for the TP build (neuronx-distributed parallel_model_load).
+docker run -d --name gemma-optb --restart unless-stopped --ipc=host $devices -p 8080:8080 {optb_image}
+echo "Option B TP server starting on :8080 (OpenAI-compatible; ~80-210s warmup incl. on-device graph load)."
 """
+    return user_data
 
 
 @mcp.tool()
 def get_vllm_deployment_config(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E4B-it",
+    model_path: str = "google/gemma-4-E2B-it",
     key_name: str = "alinux",
     gpu_memory_utilization: float = 0.95,
     instance_type: str = "inf2.8xlarge",
@@ -723,12 +530,12 @@ def get_vllm_deployment_config(
         instance_type: The EC2 instance type (default: 'inf2.xlarge').
     """
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        model_path = "google/gemma-4-E4B-it"
+        model_path = "google/gemma-4-E2B-it"
 
-    image_id = "ami-01807ad0e6484b5a8" # Fallback for us-west-2
+    image_id = "ami-04604f21b81ffbd87" # Fallback for us-east-1
 
     hf_token_expr = '$(aws ssm get-parameter --name /vllm/HF_TOKEN --with-decryption --query Parameter.Value --output text 2>/dev/null || echo \'\')'
-    user_data = _get_inferentia_user_data(model_path, hf_token_expr)
+    user_data = _get_inferentia_user_data(model_path, hf_token_expr, instance_type)
     aws_cmd = (
         f"aws ec2 run-instances \\\n"
         f"  --image-id {image_id} \\\n"
@@ -740,45 +547,23 @@ def get_vllm_deployment_config(
     )
 
     return (
-        f"### 🚀 AWS EC2 {instance_type} (AWS Inferentia/Trainium) Spot Instance vLLM Deployment Config\n\n"
+        f"### 🚀 AWS EC2 {instance_type} (AWS Inferentia) Option B (optb) Deployment Config\n\n"
         f"#### 1. UserData Script (`user_data.sh`):\n"
         f"```bash\n{user_data}\n```\n\n"
         f"#### 2. Run Instance CLI Command:\n"
         f"```bash\n{aws_cmd}\n```\n\n"
         f"#### 3. Prerequisites:\n"
-        f'- Save your HF Token in AWS SSM Parameter Store: `aws ssm put-parameter --name /vllm/HF_TOKEN --value "your-token" --type SecureString`\n'
+        f"- No HF token needed — the `xbill9/gemma4-optb` image bakes in the weights + compiled neffs.\n"
         f"- Ensure the security group allows inbound TCP traffic on port `8080`.\n"
+        f"- On `inf2.xlarge` (16GB RAM) the user-data adds swap (required for the neff-load peak) and uses the `:slim` image.\n"
         f"- *Note:* The resolved fallback AMI for AWS Neuron on Ubuntu 22.04 in region `{AWS_REGION}` is `{image_id}`."
     )
-
-
-def _check_active_instance_exists(ec2, service_name: str, region: str) -> Optional[dict]:
-    try:
-        response = ec2.describe_instances(
-            Filters=[
-                {"Name": "tag:Name", "Values": [service_name]},
-                {"Name": "instance-state-name", "Values": ["pending", "running"]},
-            ]
-        )
-        if hasattr(response, "get") and callable(response.get):
-            reservations = response.get("Reservations", [])
-            if isinstance(reservations, list):
-                for reservation in reservations:
-                    if isinstance(reservation, dict):
-                        instances = reservation.get("Instances", [])
-                        if isinstance(instances, list):
-                            for inst in instances:
-                                if isinstance(inst, dict) and "InstanceId" in inst:
-                                    return inst
-    except Exception as e:
-        logger.warning(f"Error checking active instances: {e}")
-    return None
 
 
 @mcp.tool()
 async def deploy_vllm(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E4B-it",
+    model_path: str = "google/gemma-4-E2B-it",
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
     instance_type: str = "inf2.8xlarge",
@@ -795,16 +580,6 @@ async def deploy_vllm(
         instance_type: EC2 instance type (default: 'inf2.xlarge').
     """
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
-
-    # Cost containment guardrail: Check if active instance already exists for this project in target region
-    active_inst = _check_active_instance_exists(ec2, service_name, AWS_REGION)
-    if active_inst:
-        ip = active_inst.get("PublicIpAddress", "N/A")
-        return (
-            f"⚠️ Cost Containment Guardrail: An active instance for project '{service_name}' "
-            f"already exists in region '{AWS_REGION}' (Instance ID: `{active_inst['InstanceId']}`, State: `{active_inst['State']['Name']}`, IP: `{ip}`). "
-            f"To comply with cost containment policies, no additional VM was provisioned."
-        )
 
     # 1. Resolve Subnet and its VPC ID
     candidate_subnets = []
@@ -871,10 +646,10 @@ async def deploy_vllm(
         logger.info(f"Failed to describe DLAMI images: {e}. Using fallback `{image_id}`.")
 
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E4B-it' for Inferentia.")
-        model_path = "google/gemma-4-E4B-it"
+        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
+        model_path = "google/gemma-4-E2B-it"
 
-    user_data = _get_inferentia_user_data(model_path, hf_token)
+    user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
     # 5. Launch EC2 Instance
     last_error = None
@@ -941,12 +716,28 @@ async def deploy_vllm(
         except Exception as e:
             logger.warning(f"Failed to check for existing volumes in {az}: {e}")
 
+        # Check if specified KeyName exists, if not, find first available key pair, or omit
+        actual_key_name = None
+        if key_name:
+            try:
+                kp_resp = ec2.describe_key_pairs(KeyNames=[key_name])
+                if kp_resp.get("KeyPairs"):
+                    actual_key_name = key_name
+            except Exception:
+                logger.info(f"Key pair '{key_name}' not found. Finding fallback key pair...")
+                try:
+                    kp_resp = ec2.describe_key_pairs()
+                    if kp_resp.get("KeyPairs"):
+                        actual_key_name = kp_resp["KeyPairs"][0]["KeyName"]
+                        logger.info(f"Using fallback key pair: '{actual_key_name}'")
+                except Exception as kpe:
+                    logger.warning(f"Failed to describe key pairs: {kpe}")
+
         run_args = {
             "ImageId": image_id,
             "InstanceType": instance_type,
             "MinCount": 1,
             "MaxCount": 1,
-            "KeyName": key_name,
             "SecurityGroupIds": [sg_id],
             "UserData": user_data,
             "TagSpecifications": [
@@ -977,6 +768,9 @@ async def deploy_vllm(
                 }
             ],
         }
+        if actual_key_name:
+            run_args["KeyName"] = actual_key_name
+
         if market_type == "spot":
             run_args["InstanceMarketOptions"] = {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time"}}
 
@@ -1024,7 +818,7 @@ async def deploy_vllm(
 @mcp.tool()
 async def start_ec2(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E4B-it",
+    model_path: str = "google/gemma-4-E2B-it",
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
     instance_type: str = "inf2.xlarge",
@@ -1044,16 +838,6 @@ async def start_ec2(
         instance_id: Direct Instance ID to start if it already exists (optional).
     """
     ec2 = boto3.client("ec2", region_name=AWS_REGION)
-
-    # Cost containment guardrail: Check if active instance already exists for this project in target region
-    active_inst = _check_active_instance_exists(ec2, service_name, AWS_REGION)
-    if active_inst:
-        ip = active_inst.get("PublicIpAddress", "N/A")
-        return (
-            f"⚠️ Cost Containment Guardrail: An active instance for project '{service_name}' "
-            f"already exists in region '{AWS_REGION}' (Instance ID: `{active_inst['InstanceId']}`, State: `{active_inst['State']['Name']}`, IP: `{ip}`). "
-            f"To comply with cost containment policies, no additional VM was started/provisioned."
-        )
 
     # Check if instance already exists (either by instance_id or service_name)
     existing_instance_ids = []
@@ -1173,7 +957,7 @@ async def start_ec2(
         logger.warning(f"Failed to retrieve HF token: {e}. Defaulting to empty.")
         hf_token = os.getenv("HF_TOKEN") or os.getenv("HF_API_KEY") or ""
     ami_type = "neuron-ubuntu-22.04"
-    image_id = "ami-01807ad0e6484b5a8"
+    image_id = "ami-04604f21b81ffbd87"
 
     try:
         ssm = boto3.client("ssm", region_name=AWS_REGION)
@@ -1184,10 +968,10 @@ async def start_ec2(
         logger.info(f"Failed to fetch {ami_type} DLAMI dynamically via SSM: {e}. Using fallback `{image_id}`.")
 
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E4B-it' for Inferentia.")
-        model_path = "google/gemma-4-E4B-it"
+        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
+        model_path = "google/gemma-4-E2B-it"
 
-    user_data = _get_inferentia_user_data(model_path, hf_token)
+    user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
     # 5. Launch EC2 Instance
     try:
@@ -1264,12 +1048,12 @@ async def destroy_vllm(service_name: str = DEFAULT_SERVICE_NAME) -> str:
         cmd_response = ssm.send_command(
             InstanceIds=instance_ids,
             DocumentName="AWS-RunShellScript",
-            Parameters={"commands": ["docker stop vllm-server || true", "docker rm vllm-server || true"]},
+            Parameters={"commands": ["docker ps -aq --filter name=gemma | xargs -r docker rm -f || true"]},
         )
         command_id = cmd_response["Command"]["CommandId"]
 
         return (
-            f"🧹 Successfully requested cleanup of the 'vllm-server' Docker container on EC2 Instance(s): {', '.join(instance_ids)}.\n"
+            f"🧹 Successfully requested cleanup of the Option B (`gemma-*`) Docker container(s) on EC2 Instance(s): {', '.join(instance_ids)}.\n"
             f"SSM Command ID: `{command_id}` (EC2 instance(s) remain running)."
         )
     except Exception as e:
@@ -1474,7 +1258,7 @@ async def check_vllm(
             cmd_res = ssm.send_command(
                 InstanceIds=[inst_id],
                 DocumentName="AWS-RunShellScript",
-                Parameters={"commands": ["docker inspect -f '{{.State.Status}}' vllm-server 2>&1"]},
+                Parameters={"commands": ["docker ps -a --filter name=gemma --format '{{.Names}}: {{.Status}}' 2>/dev/null | head -1 | grep . || echo 'no gemma-* container'"]},
             )
             cmd_id = cmd_res["Command"]["CommandId"]
 
@@ -1494,7 +1278,7 @@ async def check_vllm(
         except Exception as e:
             docker_status = f"Error querying SSM: {str(e)}"
 
-        report += f"- **Docker Container (`vllm-server`)**: `{docker_status}`\n"
+        report += f"- **Option B Container (`gemma-*`)**: `{docker_status}`\n"
 
         # 3. Check vLLM HTTP health endpoint
         http_status = "Unreachable"
@@ -1568,7 +1352,7 @@ def update_vllm_scaling(instance_type: str, service_name: str = DEFAULT_SERVICE_
 @mcp.tool()
 def get_vllm_gpu_deployment_config(
     cluster_name: str = "eks-gpu-cluster",
-    model_name: str = "google/gemma-4-E4B-it",
+    model_name: str = "google/gemma-4-E2B-it",
     instance_type: str = "inf2.xlarge",
 ) -> str:
     """
@@ -1580,7 +1364,7 @@ def get_vllm_gpu_deployment_config(
         instance_type: The EC2 instance type (default: 'inf2.xlarge').
     """
     if any(q in model_name.lower() for q in ["qat", "w4a16", "ct"]):
-        model_name = "google/gemma-4-E4B-it"
+        model_name = "google/gemma-4-E2B-it"
 
     manifest = f"""
 ### 🌀 vLLM on EKS AWS Inferentia (AWS Neuron Deployment)
@@ -1671,7 +1455,7 @@ spec:
 
 @mcp.tool()
 async def get_huggingfacehub_download_path(
-    repo_id: str = "google/gemma-4-E4B-it",
+    repo_id: str = "google/gemma-4-E2B-it",
 ) -> str:
     """
     Returns the local cache path for a Hugging Face model using huggingface_hub.
@@ -1690,14 +1474,14 @@ async def get_huggingfacehub_download_path(
 
 @mcp.tool()
 def get_huggingface_model_copy_instructions(
-    repo_id: str = "google/gemma-4-E4B-it",
+    repo_id: str = "google/gemma-4-E2B-it",
     bucket_name: Optional[str] = None,
 ) -> str:
     """
     Provides instructions and commands to transfer Gemma model weights from Hugging Face to your S3 bucket.
 
     Args:
-        repo_id: The Hugging Face repo ID (e.g., 'google/gemma-4-E4B-it').
+        repo_id: The Hugging Face repo ID (e.g., 'google/gemma-4-E2B-it').
         bucket_name: The target S3 bucket name (defaults to AWS_BUCKET_NAME).
     """
     if not bucket_name:
@@ -2145,7 +1929,7 @@ async def fetch_ec2_logs(instance_id: str, limit: int = 50) -> str:
         response = ssm.send_command(
             InstanceIds=[instance_id],
             DocumentName="AWS-RunShellScript",
-            Parameters={"commands": [f"docker logs --tail {limit} vllm-server 2>&1"]},
+            Parameters={"commands": [f"CN=$(docker ps -a --filter name=gemma --format '{{{{.Names}}}}' | head -1); docker logs --tail {limit} \"${{CN:-gemma-optb}}\" 2>&1"]},
         )
         command_id = response["Command"]["CommandId"]
 
@@ -2213,6 +1997,41 @@ async def analyze_gpu_logs(limit: int = 15, service_name: str = DEFAULT_SERVICE_
         return f"Failed to fetch/analyze AWS EC2 logs: {str(e)}"
 
     return "No active EC2 instance logs found."
+
+
+@mcp.tool()
+async def get_raw_ec2_logs(limit: int = 100, service_name: str = DEFAULT_SERVICE_NAME) -> str:
+    """
+    Fetches raw docker container logs directly from the active EC2 instance via SSM.
+    Use this when the model is offline, failing to start, or to view raw stack traces.
+
+    Args:
+        limit: Number of log lines to retrieve (default 100).
+        service_name: Name tag of the EC2 instance.
+    """
+    try:
+        import boto3
+
+        ec2 = boto3.client("ec2", region_name=AWS_REGION)
+        response = ec2.describe_instances(
+            Filters=[
+                {"Name": "tag:Name", "Values": [service_name]},
+                {"Name": "instance-state-name", "Values": ["running"]},
+            ]
+        )
+        instances = []
+        for reservation in response.get("Reservations", []):
+            instances.extend(reservation.get("Instances", []))
+
+        if not instances:
+            return "No running EC2 instance found for this service name."
+
+        inst_id = instances[0]["InstanceId"]
+        logger.info(f"Retrieving raw EC2 logs for instance {inst_id} via SSM...")
+        raw_logs = await fetch_ec2_logs(inst_id, limit)
+        return f"### Raw vLLM Container Logs ({inst_id})\n\n```\n{raw_logs}\n```"
+    except Exception as e:
+        return f"Failed to retrieve raw EC2 logs: {str(e)}"
 
 
 @mcp.tool()

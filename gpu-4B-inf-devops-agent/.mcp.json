@@ -1,13 +1,13 @@
 {
   "mcpServers": {
     "gpu-devops-agent": {
-      "command": "python3",
+      "command": "bash",
       "args": [
-        "/home/xbill/gemma4-tips-aws/gpu-2B-qat-inf-devops-agent/server.py"
+        "/home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/mcp-run.sh"
       ],
       "env": {
         "GOOGLE_CLOUD_PROJECT": "aisprint-491218",
-        "MODEL_NAME": "/mnt/models/gemma-4-E2B-it-qat-w4a16-ct",
+        "MODEL_NAME": "/mnt/models/gemma-4-4B-it",
         "AWS_DEFAULT_REGION": "us-west-2",
         "AWS_REGION": "us-west-2"
       }

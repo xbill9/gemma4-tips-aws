@@ -1,7 +1,7 @@
 # Configuration - Update these or override via environment variables
-SERVICE_NAME ?= inferentia-4b-devops-agent
-MODEL_PATH ?= google/gemma-4-E4B-it
-AWS_REGION ?= us-west-2
+SERVICE_NAME ?= inferentia-2b-devops-agent
+MODEL_PATH ?= google/gemma-4-E2B-it
+AWS_REGION ?= us-east-1
 
 install:
 	pip install -r requirements.txt
@@ -34,4 +34,9 @@ destroy:
 	@echo "🗑️  Destroying/stopping AWS EC2 instances for service $(SERVICE_NAME)..."
 	python3 -c "import asyncio, server; asyncio.run(server.destroy_vllm(service_name='$(SERVICE_NAME)'))"
 
-.PHONY: install run test clean deploy status destroy
+# Cache active AWS SSO credentials to .aws_creds for use by other targets
+auth:
+	@echo "🔐 Caching AWS credentials to .aws_creds..."
+	@bash save-aws-creds.sh
+
+.PHONY: install run test clean deploy status destroy auth

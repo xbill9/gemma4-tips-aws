@@ -1582,6 +1582,7 @@ async def query_gemma4(prompt: str) -> str:
         chat_completion = await client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model_name,
+            max_tokens=480,
         )
         response = chat_completion.choices[0].message.content or "No response from model."
         logger.info(f"Model response: '{response[:100]}...'")
@@ -1615,6 +1616,7 @@ async def query_gemma4_with_stats(prompt: str) -> str:
         stream = await client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model_name,
+            max_tokens=480,
             stream=True,
         )
 

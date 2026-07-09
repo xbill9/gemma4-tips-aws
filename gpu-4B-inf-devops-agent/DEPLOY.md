@@ -10,7 +10,7 @@ This document summarizes the deployment configurations, architectures, and comma
 *   **Neuron Accelerator:** 1x AWS Inferentia2 Device (2 Neuron Cores)
 *   **Operating System / AMI:** Deep Learning AMI (DLAMI) Neuron (Ubuntu 22.04)
 *   **Container Image:** `public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04`
-*   **Model:** `google/gemma-4-E4B-it` (Unquantized)
+*   **Model:** `google/gemma-4-E2B-it` (Unquantized)
 
 ### Neuron Run Command
 On AWS Inferentia, models must be compiled for Neuron cores, and devices must be exposed to Docker using `--device`.
@@ -27,7 +27,7 @@ docker run -d --name vllm-server \
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \
   python3 -m vllm.entrypoints.openai.api_server \
-  --model google/gemma-4-E4B-it \
+  --model google/gemma-4-E2B-it \
   --quantization neuron_quant \
   --max-model-len 16384 \
   --tensor-parallel-size 2 \
@@ -61,7 +61,7 @@ To connect the DevOps/SRE Agent to the newly deployed AWS endpoint:
 2. Export the endpoint URL and model name in your environment:
    ```bash
    export VLLM_BASE_URL="http://54.1.2.3:8080"
-   export MODEL_NAME="google/gemma-4-E4B-it"
+   export MODEL_NAME="google/gemma-4-E2B-it"
    ```
 3. Start the agent:
    ```bash
