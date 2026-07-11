@@ -1,7 +1,8 @@
-"""TP=2 + KV-aliasing HTTP server for Gemma4-E4B (~59-72 tok/s @ 2048, both cores).
+"""TP=2 + on-device-aliased-KV HTTP server for Gemma4-E4B (~32-34 tok/s, both cores).
 
-Loads serialized parallel neffs (tpa_pre/tpa_dec) via parallel_model_load, seeds per-rank
-device-resident KV per request. Full serving layer: sampling (temperature/top_k/top_p), SSE
+Loads the serialized parallel DECODE neff (tpa_dec) via parallel_model_load; prefill runs on
+the host CPU (fp32) as a one-time per-request seed, sliced head-r into each rank's device KV.
+Only the decode neff is resident on the cores (avoids the prefill+decode co-residency OOM). Full serving layer: sampling (temperature/top_k/top_p), SSE
 streaming, /metrics, spot-drain + bounded queue + per-request timeout + graceful SIGTERM.
 Endpoints: /generate /v1/chat/completions /v1/completions /v1/models /health /metrics.
 
@@ -21,6 +22,7 @@ MAX=int(os.environ.get("KV_MAX","2048")); BUCKET=int(os.environ.get("KV_BUCKET",
 PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E4B-it")
 PRE_DIR=os.environ.get("TPA_PRE","/workspace/tpa_pre"); DEC_DIR=os.environ.get("TPA_DEC","/workspace/tpa_dec")
 NEG_INF=float("-inf")
+def _kv_rank_width(nkv): return nkv//TP if nkv%TP==0 else nkv
 MAX_QUEUE=int(os.environ.get("MAX_QUEUE","8"))          # max concurrent+queued requests -> 429
 GEN_TIMEOUT=float(os.environ.get("GEN_TIMEOUT","120"))  # per-request wall-clock cap (s)
 GRACE_SECONDS=float(os.environ.get("GRACE_SECONDS","25"))
@@ -103,7 +105,7 @@ def sp_now():
     return out
 
 def boot():
-    global torch, tok, lang, NONSHARED, LINFO, SW, EOS, pre, dec, NK, NEG
+    global torch, tok, lang, head, softcap, NONSHARED, LINFO, SW, EOS, dec, NK, NEG
     import torch
     from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
     from neuronx_distributed.trace import parallel_model_load
@@ -111,6 +113,11 @@ def boot():
     tok=AutoTokenizer.from_pretrained(MP)
     mm=Gemma4ForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
+    head=mm.lm_head; softcap=getattr(mm.config.text_config,"final_logit_softcapping",None)
+    class _GeluTanh(torch.nn.Module):
+        def forward(s,x): return 0.5*x*(1.0+torch.tanh(0.7978845608028654*(x+0.044715*x*x*x)))
+    for mod in lang.modules():
+        if hasattr(mod,"act_fn"): mod.act_fn=_GeluTanh()
     NONSHARED,LINFO=[],{}
     for i,lyr in enumerate(lang.layers[:cfg.num_hidden_layers]):
         a=lyr.self_attn
@@ -118,7 +125,7 @@ def boot():
             hd=a.head_dim; NONSHARED.append(i); LINFO[i]=(a.k_proj.out_features//hd,hd)
     NK=len(NONSHARED)
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
-    t=time.time(); pre=parallel_model_load(PRE_DIR); dec=parallel_model_load(DEC_DIR)
+    t=time.time(); dec=parallel_model_load(DEC_DIR)   # decode neff only; prefill runs on host CPU
     # Warm up: first forward triggers _load() + move_trace_to_device (the ~45s graph load) AND
     # swaps state params to device, so sp_now() returns device-resident params from request #1.
     warm=tok.apply_chat_template([{"role":"user","content":"Hi"}],add_generation_prompt=True,return_tensors="pt",return_dict=True)["input_ids"][0].tolist()
@@ -134,6 +141,14 @@ def host_pos(pos):
     ar=torch.arange(MAX); oh=(ar==pos).view(1,1,MAX,1).to(torch.float32); valid=ar<=pos
     fm=torch.where(valid,0.0,NEG).view(1,1,1,MAX); sm=torch.where(valid&(ar>pos-SW),0.0,NEG).view(1,1,1,MAX)
     return torch.tensor([[pos]],dtype=torch.long),oh,fm,sm
+def cpu_prefill(prompt):
+    """Host fp32 prefill (one-time seed) -> full KV per non-shared layer + first-token logits."""
+    from transformers import DynamicCache
+    n0=len(prompt); ie,ple=embed_ids(prompt); c=DynamicCache()
+    with torch.no_grad():
+        out=lang(inputs_embeds=ie,per_layer_inputs=ple,attention_mask=torch.ones(1,n0,dtype=torch.long),use_cache=True,past_key_values=c)
+        h=head(out.last_hidden_state); lg=softcap*torch.tanh(h/softcap) if softcap else h
+    return lg,[c.layers[i].keys for i in NONSHARED],[c.layers[i].values for i in NONSHARED]
 
 def pick(logits, temperature, top_k, top_p):
     if temperature is None or temperature<=0.0: return int(torch.argmax(logits))
@@ -154,13 +169,14 @@ def _generate(prompt_ids, max_new, temperature, top_k, top_p, stop_ids, timeout_
     """Token generator — call under LOCK. Yields non-EOS/stop ids; StopIteration.value=(n0,finish)."""
     prompt=prompt_ids[:BUCKET]; n0=len(prompt)
     if n0>BUCKET: raise ValueError(f"prompt {n0} tokens > BUCKET {BUCKET}")
-    pad=prompt+[0]*(BUCKET-n0); ie,ple=embed_ids(pad); am=torch.tensor([[1]*n0+[0]*(BUCKET-n0)])
-    lg,ks,vs=pre(ie,am,ple)
+    lg,ks,vs=cpu_prefill(prompt)  # host fp32 prefill -> full KV + first-token logits
     SP=sp_now()  # live device-resident params — reseed clears prior request's KV
     for r in range(TP):
         for j in range(NK):
-            sk=torch.zeros(1,LINFO[NONSHARED[j]][0],MAX,LINFO[NONSHARED[j]][1]); sk[:,:,:n0,:]=ks[j][:,:,:n0,:]
-            sv=torch.zeros(1,LINFO[NONSHARED[j]][0],MAX,LINFO[NONSHARED[j]][1]); sv[:,:,:n0,:]=vs[j][:,:,:n0,:]
+            nkv,hd=LINFO[NONSHARED[j]]; w=_kv_rank_width(nkv)
+            sl=slice(r*w,(r+1)*w) if nkv%TP==0 else slice(0,nkv)   # rank r gets kv head-slice r
+            sk=torch.zeros(1,w,MAX,hd); sk[:,:,:n0,:]=ks[j][:,sl,:n0,:]
+            sv=torch.zeros(1,w,MAX,hd); sv[:,:,:n0,:]=vs[j][:,sl,:n0,:]
             SP[r][j].data.copy_(sk); SP[r][NK+j].data.copy_(sv)
     nxt=pick(lg[0,n0-1],temperature,top_k,top_p)
     cur=n0; cap=min(max_new,MAX-n0-1); deadline=time.time()+(timeout_s or GEN_TIMEOUT); steps=0
@@ -211,7 +227,7 @@ class H(BaseHTTPRequestHandler):
             elif not READY.is_set(): s._send(503,{"status":"loading"})
             else: s._send(200,{"status":"ok"})
         elif p=="/metrics": s._send_text(200,_render_metrics())
-        else: s._send(200,{"status":"ok","model":f"{MODEL_NAME} (TP2+alias)","device":"Inferentia2","max_total_tokens":MAX,"max_prompt_tokens":BUCKET,"tps":"~59-72","routes":["/generate","/v1/chat/completions","/v1/completions","/v1/models","/health","/metrics"]})
+        else: s._send(200,{"status":"ok","model":f"{MODEL_NAME} (TP2+alias)","device":"Inferentia2","max_total_tokens":MAX,"max_prompt_tokens":BUCKET,"tps":"~32-34","routes":["/generate","/v1/chat/completions","/v1/completions","/v1/models","/health","/metrics"]})
     def do_POST(s):
         path=s.path.rstrip("/")
         if path not in ("/v1/chat/completions","/v1/completions","/generate"): return s._send(404,{"error":{"message":f"unknown route {path}"}})
