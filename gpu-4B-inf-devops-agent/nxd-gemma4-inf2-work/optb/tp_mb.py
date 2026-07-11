@@ -62,6 +62,23 @@ def build_module():
             else:
                 a.num_key_value_groups=(a.q_proj.out_features//hd)//nkv
         mp=lyr.mlp; mp.gate_proj=col(mp.gate_proj); mp.up_proj=col(mp.up_proj); mp.down_proj=row(mp.down_proj)
+    # CRITICAL: load per-layer `layer_scalar` BUFFERS from the checkpoint. These multiply each layer's
+    # output (modeling_gemma4 L1461 `hidden_states *= self.layer_scalar`); real value ~0.061 but config
+    # default is 1.0, and shard_children/get_sharded_checkpoint load PARAMS only (never buffers) — so
+    # without this every layer over-scales ~16x → compounds over 42 layers → cos~0 garbage. (This is
+    # the difference vs tp_alias, which built via from_pretrained and got buffers loaded for free.)
+    import glob
+    from safetensors import safe_open
+    lsv={}
+    for fp in sorted(glob.glob(MP+"/*.safetensors")):
+        with safe_open(fp,framework="pt") as sf:
+            for k in sf.keys():
+                if k.startswith("model.language_model.layers.") and k.endswith(".layer_scalar"):
+                    lsv[int(k.split("layers.")[1].split(".")[0])]=sf.get_tensor(k)
+    with torch.no_grad():
+        for i,lyr in enumerate(lang.layers[:lang.config.num_hidden_layers]):
+            if hasattr(lyr,"layer_scalar") and i in lsv:
+                lyr.layer_scalar.copy_(lsv[i].to(lyr.layer_scalar.dtype))
     lang.embed_tokens=torch.nn.Embedding(2, lang.config.hidden_size)   # dummy: embeddings computed on host, not on device
     NK=len(NONSHARED); W={i:_kv_rank_width(LINFO[i][0]) for i in NONSHARED}
     def _sc(lg): return softcap*torch.tanh(lg/softcap) if softcap else lg
