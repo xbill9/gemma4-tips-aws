@@ -105,11 +105,18 @@ def sp_now():
     return out
 
 def boot():
-    global torch, tok, lang, head, softcap, NONSHARED, LINFO, SW, EOS, dec, NK, NEG
+    global torch, tok, lang, head, softcap, NONSHARED, LINFO, SW, EOS, dec, NK, NEG, PF_AUTOCAST
     import torch
     from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
     from neuronx_distributed.trace import parallel_model_load
     NEG=torch.finfo(torch.float32).min
+    # host prefill is a one-time seed per request. Pin to all cores — threading is what makes it fast
+    # (measured: 1 thread 6.3s vs 32 threads 1.4s on a 16-tok prompt). NOTE: bf16 autocast is SLOWER
+    # on this CPU (no efficient bf16 kernels), so it's off by default; the ~1.4-1.6s host-prefill floor
+    # only drops with on-device prefill (bucketing). Model stays fp32 so embed_ids feeds the decode
+    # neff the fp32 embeddings it was traced with.
+    torch.set_num_threads(int(os.environ.get("PREFILL_THREADS", os.cpu_count() or 16)))
+    PF_AUTOCAST=os.environ.get("PREFILL_AUTOCAST","off")=="bf16"
     tok=AutoTokenizer.from_pretrained(MP)
     mm=Gemma4ForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
@@ -141,13 +148,17 @@ def host_pos(pos):
     ar=torch.arange(MAX); oh=(ar==pos).view(1,1,MAX,1).to(torch.float32); valid=ar<=pos
     fm=torch.where(valid,0.0,NEG).view(1,1,1,MAX); sm=torch.where(valid&(ar>pos-SW),0.0,NEG).view(1,1,1,MAX)
     return torch.tensor([[pos]],dtype=torch.long),oh,fm,sm
+LAST_PREFILL_S=0.0
 def cpu_prefill(prompt):
-    """Host fp32 prefill (one-time seed) -> full KV per non-shared layer + first-token logits."""
+    """Host prefill (one-time seed) -> full KV per non-shared layer + first-token logits.
+    Runs under bf16 autocast on all cores for speed; KV is cast to bf16 when seeded."""
     from transformers import DynamicCache
-    n0=len(prompt); ie,ple=embed_ids(prompt); c=DynamicCache()
-    with torch.no_grad():
+    global LAST_PREFILL_S
+    n0=len(prompt); t0=time.time(); ie,ple=embed_ids(prompt); c=DynamicCache()
+    with torch.no_grad(), torch.autocast("cpu", dtype=torch.bfloat16, enabled=PF_AUTOCAST):
         out=lang(inputs_embeds=ie,per_layer_inputs=ple,attention_mask=torch.ones(1,n0,dtype=torch.long),use_cache=True,past_key_values=c)
-        h=head(out.last_hidden_state); lg=softcap*torch.tanh(h/softcap) if softcap else h
+        h=head(out.last_hidden_state); lg=(softcap*torch.tanh(h/softcap) if softcap else h).float()
+    LAST_PREFILL_S=time.time()-t0
     return lg,[c.layers[i].keys for i in NONSHARED],[c.layers[i].values for i in NONSHARED]
 
 def pick(logits, temperature, top_k, top_p):
@@ -211,7 +222,8 @@ def run_chat(messages, max_new, temperature, top_k, top_p, stop, timeout_s=None)
     with LOCK: gen,n0,finish=generate_ids(prompt_ids,max_new,temperature,top_k,top_p,stop_ids,timeout_s)
     text=tok.decode(gen,skip_special_tokens=True); dt=time.time()-t_req; ct=len(gen)
     _bump(reqs=1,ptoks=n0,ctoks=ct,secs=dt,to=(1 if finish=="timeout" else 0),tps=(ct/dt if dt>0 else 0.0))
-    print(f"[req] pt={n0} ct={ct} {round(ct/dt,1) if dt>0 else 0}tok/s {round(dt,2)}s finish={finish}",flush=True)
+    dec_s=max(dt-LAST_PREFILL_S,1e-6)
+    print(f"[req] pt={n0} ct={ct} prefill={round(LAST_PREFILL_S,2)}s decode={round(ct/dec_s,1)}tok/s e2e={round(ct/dt,1) if dt>0 else 0}tok/s {round(dt,2)}s finish={finish}",flush=True)
     return text,n0,ct,finish
 
 class H(BaseHTTPRequestHandler):
