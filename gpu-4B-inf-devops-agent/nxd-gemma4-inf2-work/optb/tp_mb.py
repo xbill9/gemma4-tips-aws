@@ -216,6 +216,11 @@ def main():
     print("SEQ_MATCH", cpu_seq==seq, flush=True)
     print(f"DEVICE PREFILL first-token: {pf*1000:.0f} ms  [vs ~1400-1600ms CPU prefill]",flush=True)
     print("TPMB_OK",flush=True)
+    save_to=os.environ.get("MB_SAVE")
+    if save_to:
+        print("saving model to",save_to,flush=True)
+        model.save(save_to, save_weights=True)   # bundles neffs + sharded weights -> load with NxDModel.load
+        print("MB_SAVED",save_to,flush=True)
 
 if __name__=="__main__":
     if os.environ.get("_TP_CHILD")!="1":
