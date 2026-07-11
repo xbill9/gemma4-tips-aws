@@ -5,7 +5,7 @@ import os
 os.environ["NEURON_RT_VISIBLE_CORES"] = "0,1"   # prefill->core0, decode->core1 (each ~4.5GB fits a 16GB core)
 import sys, time, gc, torch
 torch.manual_seed(0)
-MP = "/workspace/real-gemma4-E2B-it"; MAX = 128; BUCKET = 32
+MP = "/workspace/real-gemma4-E4B-it"; MAX = 128; BUCKET = 32
 NEG = torch.finfo(torch.float32).min
 PROMPT = sys.argv[1] if len(sys.argv) > 1 else "What is the capital of France?"
 

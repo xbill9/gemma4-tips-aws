@@ -1,4 +1,4 @@
-"""TP=2 sharded Gemma4-E2B prefill validation.
+"""TP=2 sharded Gemma4-E4B prefill validation.
 Shards q/o/gate/up/down across 2 cores (k/v replicated, MQA nkv=1), traces the lang
 forward via NxD parallel_model_trace, compares first-token argmax to a CPU fp32 reference."""
 import sys, os, types
@@ -6,7 +6,7 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 TP = 2
 PROMPT = "What is the capital of France?"
 
@@ -49,8 +49,15 @@ def get_callable():
     for lyr in lang.layers[:cfg.num_hidden_layers]:
         a = lyr.self_attn
         a.q_proj = col(a.q_proj)
+        # E4B is GQA (num_key_value_heads=2), NOT MQA -> shard k/v across ranks too so each
+        # rank holds the kv head(s) matching its q heads. Keep num_key_value_groups UNCHANGED:
+        # groups = (nheads/TP)/(nkv/TP) = nheads/nkv, so GQA head->kv mapping stays correct.
+        # (global "alternative-attention" layers have v_proj=None / V=K -> sharding k carries V.)
+        if getattr(a, "k_proj", None) is not None:
+            a.k_proj = col(a.k_proj)
+        if getattr(a, "v_proj", None) is not None:
+            a.v_proj = col(a.v_proj)
         a.o_proj = row(a.o_proj)
-        a.num_key_value_groups = a.num_key_value_groups // TP  # 8 -> 4 (q heads/rank vs replicated kv)
         mlp = lyr.mlp
         mlp.gate_proj = col(mlp.gate_proj)
         mlp.up_proj = col(mlp.up_proj)

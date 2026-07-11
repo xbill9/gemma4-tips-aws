@@ -1,7 +1,7 @@
 
 import os, torch, transformers
 torch.manual_seed(0)
-MP="/workspace/real-gemma4-E2B-it"
+MP="/workspace/real-gemma4-E4B-it"
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration, DynamicCache
 tok=AutoTokenizer.from_pretrained(MP)
 m=Gemma4ForConditionalGeneration.from_pretrained(MP, torch_dtype=torch.float32, attn_implementation="eager"); m.eval()

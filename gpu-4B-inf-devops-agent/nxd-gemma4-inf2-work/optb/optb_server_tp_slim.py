@@ -1,4 +1,4 @@
-"""TP=2 + KV-aliasing HTTP server for Gemma4-E2B, SLIM host footprint (fits inf2.xlarge 16GB).
+"""TP=2 + KV-aliasing HTTP server for Gemma4-E4B, SLIM host footprint (fits inf2.xlarge 16GB).
 Host embeddings load slim: meta build + bf16 non-decoder safetensors + fp32 activation cast
 (the 35 transformer blocks never materialize host-side; they run on-device via the neffs).
 Same serving layer + KV-leak fix as optb_server_tp.py. ~59-72 tok/s @ 2048, both cores.
@@ -19,9 +19,9 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP=os.environ.get("MODEL_DIR","/workspace/real-gemma4-E2B-it"); TP=int(os.environ.get("TP_DEGREE","2"))
+MP=os.environ.get("MODEL_DIR","/workspace/real-gemma4-E4B-it"); TP=int(os.environ.get("TP_DEGREE","2"))
 MAX=int(os.environ.get("KV_MAX","2048")); BUCKET=int(os.environ.get("KV_BUCKET","512"))
-PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E2B-it")
+PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E4B-it")
 PRE_DIR=os.environ.get("TPA_PRE","/workspace/tpa_pre"); DEC_DIR=os.environ.get("TPA_DEC","/workspace/tpa_dec")
 NEG_INF=float("-inf"); HOST_DTYPE_STR=os.environ.get("HOST_DTYPE","bf16")
 MAX_QUEUE=int(os.environ.get("MAX_QUEUE","8"))          # max concurrent+queued requests -> 429

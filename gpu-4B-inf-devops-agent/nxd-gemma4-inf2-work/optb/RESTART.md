@@ -26,7 +26,7 @@ aws ec2 run-instances --region us-east-1 \
   --security-group-ids sg-065c6975cbd84dad3 \
   --key-name alinux \
   --iam-instance-profile Name=aws-elasticbeanstalk-ec2-role \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=inferentia-2b-devops-agent}]' \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=inferentia-4b-devops-agent}]' \
   --query 'Instances[0].InstanceId' --output text
 ```
 For **spot** instead (cheaper, can be interrupted), add:
@@ -59,7 +59,7 @@ curl -s -X POST localhost:8080/generate -d '{"prompt":"What is the capital of Fr
 ## Key on-box paths (all inside the AMI)
 - venv: `/opt/aws_neuronx_venv_pytorch_2_8` (torch 2.8 + torch_neuronx + transformers 5.13.0);
   run with `export PATH=/opt/aws_neuronx_venv_pytorch_2_8/bin:$PATH` (NOT `source activate` under dash)
-- model: `/workspace/real-gemma4-E2B-it` (real 5.12B multimodal, model_type=gemma4)
+- model: `/workspace/real-gemma4-E4B-it` (real 5.12B multimodal, model_type=gemma4)
 - neffs: `kv_pre_neff.pt`+`kv_dec_neff.pt` (128/32), `kv_pre_big.pt`+`kv_dec_big.pt` (256/64)
 - scripts: `/workspace/optb_kv.py` (cpu|trace), `optb_kv_run.py`, `optb_server.py`, `optb_gen.py`, `optb_ask.py`
   (all also in git under this dir)
@@ -75,7 +75,7 @@ KV_MAX=256 KV_BUCKET=64 KV_PRE_OUT=/workspace/kv_pre_big.pt KV_DEC_OUT=/workspac
 ## S3 backup (secondary, in addition to the AMI)
 Made 2026-07-06 to `s3://xbill-gemma4-patches-2b/optb-backup/` (29 objects, 32 GiB):
 - `neffs/` — kv_pre_neff.pt+kv_dec_neff.pt (128/32), kv_pre_big.pt+kv_dec_big.pt (256/64), optb_neff.pt, optb_gen_neff.pt
-- `model/real-gemma4-E2B-it/` — real 5.12B checkpoint
+- `model/real-gemma4-E4B-it/` — real 5.12B checkpoint
 - `scripts/optb_*.py`, `MANIFEST.txt`
 
 Restore onto a fresh box WITHOUT the AMI (e.g. plain Neuron DLAMI):
@@ -85,7 +85,7 @@ pip install transformers==5.13.0
 mkdir -p /workspace && cd /workspace
 aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/neffs/  /workspace/
 aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/scripts/ /workspace/
-aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/model/real-gemma4-E2B-it /workspace/real-gemma4-E2B-it
+aws s3 sync s3://xbill-gemma4-patches-2b/optb-backup/model/real-gemma4-E4B-it /workspace/real-gemma4-E4B-it
 # then start optb_server.py as above
 ```
 (Box role has AmazonS3FullAccess as of 2026-07-06.)

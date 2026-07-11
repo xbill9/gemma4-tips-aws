@@ -5,7 +5,7 @@ WORKDIR /app
 COPY optb_server.py /app/optb_server.py
 COPY kv_pre_512.pt /workspace/kv_pre_512.pt
 COPY kv_dec_512.pt /workspace/kv_dec_512.pt
-COPY real-gemma4-E2B-it /workspace/real-gemma4-E2B-it
+COPY real-gemma4-E4B-it /workspace/real-gemma4-E4B-it
 COPY opt_neuron /opt/aws/neuron
 RUN ldconfig /opt/aws/neuron/lib || true
 COPY torch-2.8.0+cpu-cp310-cp310-manylinux_2_28_x86_64.whl /tmp/torch-2.8.0+cpu-cp310-cp310-manylinux_2_28_x86_64.whl

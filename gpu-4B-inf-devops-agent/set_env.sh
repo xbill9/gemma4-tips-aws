@@ -3,7 +3,7 @@
 # Simple environment configuration for Local Gemma 4 SRE Agent
 
 cat <<EOF > .env
-MODEL_NAME=google/gemma-4-E2B-it
+MODEL_NAME=google/gemma-4-E4B-it
 LOCAL_DOCKER_IMAGE=ollama/ollama:latest
 LOCAL_VLLM_PORT=8080
 EOF

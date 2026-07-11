@@ -1,11 +1,11 @@
-"""Proper two-graph KV-cache decode for Gemma-4-E2B via torch_neuronx (Option B).
+"""Proper two-graph KV-cache decode for Gemma-4-E4B via torch_neuronx (Option B).
 mode 'cpu'  : validate the prefill+static-buffer-decode logic in eager, no trace.
 mode 'trace': compile prefill + decode graphs, run device greedy, compare to CPU.
 """
 import os, sys, time, torch
 torch.manual_seed(0)
 MODE = sys.argv[1] if len(sys.argv) > 1 else "cpu"
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "128"))       # max total sequence (buffer length)
 BUCKET = int(os.environ.get("KV_BUCKET", "32"))  # prefill bucket (right-padded prompt length)
 PRE_OUT = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
@@ -14,10 +14,12 @@ NEG = torch.finfo(torch.float32).min
 
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration, DynamicCache
 tok = AutoTokenizer.from_pretrained(MP)
-m = Gemma4ForConditionalGeneration.from_pretrained(MP, torch_dtype=torch.float32, attn_implementation="eager"); m.eval()
+m = Gemma4ForConditionalGeneration.from_pretrained(MP, torch_dtype=torch.bfloat16, attn_implementation="eager"); m.eval()
 lang = m.model.language_model; lm_head = m.lm_head
 softcap = getattr(m.config.text_config, "final_logit_softcapping", None)
 cfg = lang.config
+WDT = m.dtype  # weight/activation dtype (bf16): host KV buffers + onehot must match so on-device
+               # constants fit a single 16GB core (~7.7GB) instead of fp32 (~15.4GB, OOMs)
 
 class GeluTanh(torch.nn.Module):
     def forward(self, x): return 0.5*x*(1.0+torch.tanh(0.7978845608028654*(x+0.044715*x*x*x)))
@@ -71,7 +73,7 @@ class StaticKV:
 def host_pos_tensors(pos):
     """All position-dependent inputs, computed on host so the graph has no int-index ops."""
     ar = torch.arange(MAX)
-    onehot = (ar == pos).view(1, 1, MAX, 1).to(torch.float32)
+    onehot = (ar == pos).view(1, 1, MAX, 1).to(WDT)
     valid = ar <= pos
     full = torch.where(valid, 0.0, NEG).view(1, 1, 1, MAX)
     slide = torch.where(valid & (ar > pos - SW), 0.0, NEG).view(1, 1, 1, MAX)
@@ -118,8 +120,8 @@ def run_greedy(pre_fn, dec_fn, maxnew=30):
         lg, ks, vs = pre_fn(ie, am, ple)
     first = int(lg[0, n0-1].argmax())
     # --- init MAX buffers, copy prompt K/V ---
-    key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
-    val_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
+    key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1], dtype=WDT) for i in NONSHARED]
+    val_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1], dtype=WDT) for i in NONSHARED]
     for j in range(len(NONSHARED)):
         key_bufs[j][:, :, :n0, :] = ks[j][:, :, :n0, :]
         val_bufs[j][:, :, :n0, :] = vs[j][:, :, :n0, :]
@@ -158,8 +160,8 @@ pre_neff = torch_neuronx.trace(pre, (ie, am, ple), compiler_workdir="/workspace/
 torch.jit.save(pre_neff, PRE_OUT)
 print("PREFILL_TRACE_DONE secs", round(time.time()-t, 1), flush=True)
 
-key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
-val_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1]) for i in NONSHARED]
+key_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1], dtype=WDT) for i in NONSHARED]
+val_bufs = [torch.zeros(1, LINFO[i][0], MAX, LINFO[i][1], dtype=WDT) for i in NONSHARED]
 ie1, ple1 = embed_ids([prompt[-1]])
 position_ids, onehot, full_mask, slide_mask = host_pos_tensors(n0)
 t = time.time()

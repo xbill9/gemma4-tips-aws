@@ -1,15 +1,21 @@
-"""TP=2 + KV aliasing: shard Gemma4-E2B across 2 cores AND keep KV device-resident.
-get_dec returns (model, aliases) so parallel_model_trace enables input_output_aliases per rank.
-Traces prefill + decode, saves via parallel_model_save. Run/seed/measure in tp_alias_run.py."""
+"""TP=2 + on-device KV aliasing, DECODE-ONLY trace for Gemma4-E4B.
+Correct GQA sharding: shard q/o/k/v/gate/up/down across 2 cores; k/v shard to nkv//TP heads/rank
+when divisible (keep num_key_value_groups), else replicate. KV buffers are device-resident
+Parameters aliased as input_output_aliases so the cache never leaves the core across decode steps.
+Prefill is done on CPU at run time (one-time seed), so only ONE neff is resident on-device
+(avoids the prefill+decode co-residency Allocation Failure). Saves via parallel_model_save."""
 import sys, os, types, time
 m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_trace=None
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 TP = 2
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
 CARGS = ["--model-type","transformer","--auto-cast","all","--auto-cast-type","bf16"]
+
+def _kv_rank_width(nkv):
+    return nkv // TP if nkv % TP == 0 else nkv
 
 def _build_shared():
     import torch
@@ -40,29 +46,27 @@ def _shard(lang, nlayers):
         out,inf=o.weight.shape; l=RowParallelLinear(inf,out,bias=False,input_is_parallel=True); c=inf//TP
         l.weight.data.copy_(o.weight.data[:,rank*c:(rank+1)*c]); return l
     for lyr in lang.layers[:nlayers]:
-        a=lyr.self_attn; a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj); a.num_key_value_groups//=TP
+        a=lyr.self_attn; hd=a.head_dim
+        a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj)
+        # Correct GQA sharding: shard k/v to nkv//TP heads/rank when divisible, keep groups.
+        if getattr(a,"k_proj",None) is not None:
+            nkv=a.k_proj.out_features//hd
+            if nkv % TP == 0:
+                a.k_proj=col(a.k_proj)
+                if getattr(a,"v_proj",None) is not None: a.v_proj=col(a.v_proj)
+            else:
+                a.num_key_value_groups=(a.q_proj.out_features//hd)//nkv
         mp=lyr.mlp; mp.gate_proj=col(mp.gate_proj); mp.up_proj=col(mp.up_proj); mp.down_proj=row(mp.down_proj)
 
 def _sc(softcap, lg):
     import torch
     return softcap*torch.tanh(lg/softcap) if softcap else lg
 
-def get_pre():
-    import torch
-    from transformers import DynamicCache
-    mm, lang, lm_head, softcap, NONSHARED, LINFO, SW = _build_shared()
-    _shard(lang, lang.config.num_hidden_layers)
-    class PreWrap(torch.nn.Module):
-        def __init__(s): super().__init__(); s.lang=lang; s.head=lm_head
-        def forward(s, ie, am, ple):
-            c=DynamicCache(); out=s.lang(inputs_embeds=ie,per_layer_inputs=ple,attention_mask=am,use_cache=True,past_key_values=c)
-            return (_sc(softcap,s.head(out.last_hidden_state)),[c.layers[i].keys for i in NONSHARED],[c.layers[i].values for i in NONSHARED])
-    return PreWrap().eval(), {}
-
 def get_dec():
     import torch
     mm, lang, lm_head, softcap, NONSHARED, LINFO, SW = _build_shared()
     _shard(lang, lang.config.num_hidden_layers); NK=len(NONSHARED)
+    W = {i: _kv_rank_width(LINFO[i][0]) for i in NONSHARED}   # per-rank KV width
     class StaticKV:
         is_compileable=False
         def __init__(s,kb,vb,oh): s.key={i:kb[j] for j,i in enumerate(NONSHARED)}; s.val={i:vb[j] for j,i in enumerate(NONSHARED)}; s.oh=oh
@@ -72,8 +76,8 @@ def get_dec():
     class DecWrap(torch.nn.Module):
         def __init__(s):
             super().__init__(); s.lang=lang; s.head=lm_head
-            s.kbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
-            s.vbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
+            s.kbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,W[i],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
+            s.vbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,W[i],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
         def forward(s, ie, ple, position_ids, onehot, full_mask, slide_mask):
             cache=StaticKV(list(s.kbuf),list(s.vbuf),onehot)
             out=s.lang(inputs_embeds=ie,per_layer_inputs=ple,position_ids=position_ids,attention_mask={"full_attention":full_mask,"sliding_attention":slide_mask},use_cache=True,past_key_values=cache)
@@ -98,14 +102,10 @@ def main():
         return ie,ple
     enc=tok.apply_chat_template([{"role":"user","content":"What is the capital of France?"}],add_generation_prompt=True,return_tensors="pt",return_dict=True)
     prompt=enc["input_ids"][0].tolist(); n0=len(prompt); assert n0<=BUCKET
-    pad=prompt+[0]*(BUCKET-n0); ie,ple=embed_ids(pad); am=torch.tensor([[1]*n0+[0]*(BUCKET-n0)])
-    print("tracing TP+alias prefill ...",flush=True)
-    pre=neuronx_distributed.trace.parallel_model_trace(get_pre,(ie,am,ple),tp_degree=TP,compiler_args=CARGS)
-    parallel_model_save(pre,"/workspace/tpa_pre"); print("PREFILL_SAVED",flush=True); del pre; import gc; gc.collect()
     ie1,ple1=embed_ids([prompt[-1]])
     ar=torch.arange(MAX); oh=(ar==n0).view(1,1,MAX,1).to(torch.float32); valid=ar<=n0
     fm=torch.where(valid,0.0,NEG).view(1,1,1,MAX); sm=torch.where(valid&(ar>n0-SW),0.0,NEG).view(1,1,1,MAX); pid=torch.tensor([[n0]],dtype=torch.long)
-    print("tracing TP+alias decode ...",flush=True)
+    print("tracing TP+alias DECODE (only) ...",flush=True)
     dec=neuronx_distributed.trace.parallel_model_trace(get_dec,(ie1,ple1,pid,oh,fm,sm),tp_degree=TP,compiler_args=CARGS)
     parallel_model_save(dec,"/workspace/tpa_dec"); print("DECODE_SAVED",flush=True)
     print("TPA_TRACE_OK",flush=True)

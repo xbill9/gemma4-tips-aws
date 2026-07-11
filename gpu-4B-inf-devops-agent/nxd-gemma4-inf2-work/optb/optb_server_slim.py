@@ -1,4 +1,4 @@
-"""Persistent Gemma-4-E2B inference server on Inferentia2 (Option B, two-graph KV-cache).
+"""Persistent Gemma-4-E4B inference server on Inferentia2 (Option B, two-graph KV-cache).
 SLIM-HOST variant: loads ONLY the embedding + PLE tables on the host (in bf16), NOT the 35
 transformer decoder blocks (those are baked into the neffs and never used host-side). This drops
 host RAM from ~20 GB (full fp32 model) to ~6 GB so it fits inf2.xlarge (16 GiB) without swapping.
@@ -10,7 +10,7 @@ import os
 os.environ["NEURON_RT_VISIBLE_CORES"] = "0,1"
 import sys, json, time, threading, glob, resource, torch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "128"))
 BUCKET = int(os.environ.get("KV_BUCKET", "32"))
 PRE_NEFF = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
@@ -20,7 +20,7 @@ SELFTEST = os.environ.get("SELFTEST", "0") == "1"
 NEG = torch.finfo(torch.float32).min
 NEG_INF = float("-inf")
 PORT = int(os.environ.get("PORT", "8080"))
-MODEL_NAME = "gemma-4-E2B-it"
+MODEL_NAME = "gemma-4-E4B-it"
 
 def rss_gb():
     return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024), 2)  # KB->GB on linux

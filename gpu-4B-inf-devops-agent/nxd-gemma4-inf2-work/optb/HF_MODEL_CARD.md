@@ -1,6 +1,6 @@
 ---
 license: apache-2.0
-base_model: google/gemma-4-E2B-it
+base_model: google/gemma-4-E4B-it
 tags:
   - gemma
   - gemma-4
@@ -13,10 +13,10 @@ library_name: torch-neuronx
 pipeline_tag: text-generation
 ---
 
-# Gemma-4-E2B-it on AWS Inferentia2 (Option B / torch_neuronx)
+# Gemma-4-E4B-it on AWS Inferentia2 (Option B / torch_neuronx)
 
 Compiled **AWS Neuron** artifacts + a self-contained server that run
-[`google/gemma-4-E2B-it`](https://huggingface.co/google/gemma-4-E2B-it) **coherently and
+[`google/gemma-4-E4B-it`](https://huggingface.co/google/gemma-4-E4B-it) **coherently and
 fast on a single AWS Inferentia2 device** (`inf2.8xlarge`), at **~44 tokens/sec**.
 
 This is a **runnable inference port**, not a fine-tune — the weights are Google's,
@@ -29,7 +29,7 @@ KV-sharing graph).
 
 | | |
 |---|---|
-| Base model | `google/gemma-4-E2B-it` (~5B params, 2B *effective* via MatFormer + Per-Layer Embeddings), Apache-2.0 |
+| Base model | `google/gemma-4-E4B-it` (~8B params, 4B *effective* via MatFormer + Per-Layer Embeddings), Apache-2.0 |
 | Hardware | AWS Inferentia2 — `inf2.8xlarge`, one logical NeuronCore (cores 0–1) |
 | Precision | bf16 (fp32 neffs overflow the 16 GB core) |
 | Throughput | **~44 tok/s** (~23 ms/token), measured |
@@ -39,7 +39,7 @@ KV-sharing graph).
 
 ## Why this exists
 
-Gemma-4-E2B shares Key/Value projections across groups of layers. On TPU that's a free
+Gemma-4-E4B shares Key/Value projections across groups of layers. On TPU that's a free
 graph view; in AWS's NxD framework it can't be expressed, so the vendor path either
 refuses the model or emits gibberish. **Option B** sidesteps NxD entirely: it
 `torch_neuronx.trace()`s the Hugging Face `transformers` (5.13) Gemma-4 **text forward
@@ -82,7 +82,7 @@ Inference is split into two compiled graphs sharing one static KV buffer:
 | `Dockerfile` / `Dockerfile.slim` | Reproducible runtime images (full / slim) |
 
 The neffs embed the base weights in bf16, so they are Apache-2.0 derivatives of
-`google/gemma-4-E2B-it` — see **License** below.
+`google/gemma-4-E4B-it` — see **License** below.
 
 ## Run the prebuilt Docker image (fastest)
 
@@ -90,13 +90,13 @@ A ready-to-run image with the neffs + Neuron runtime + server baked in is publis
 Docker Hub — no compilation or Python setup needed:
 
 ```bash
-docker pull xbill9/gemma4-optb:latest
+docker pull xbill9/gemma4-optb-e4b:latest
 # on an AWS inf2 instance:
-docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb:latest
+docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb-e4b:latest
 # then: curl -s localhost:8080/health
 ```
 
-Image tags on **`docker.io/xbill9/gemma4-optb`** (~16 GB each, Apache-2.0):
+Image tags on **`docker.io/xbill9/gemma4-optb-e4b`** (~16 GB each, Apache-2.0):
 - **`latest`** / `512-128` — full server, for **inf2.8xlarge** (128 GB host RAM), **~44 tok/s**.
 - **`slim`** — low-RAM server for **inf2.xlarge** (16 GB host RAM), **~24 tok/s**.
 
@@ -107,7 +107,7 @@ Add swap **before** running:
 
 ```bash
 sudo fallocate -l 16G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
-docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb:slim
+docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb-e4b:slim
 ```
 
 Both images serve the same OpenAI-compatible routes below, plus a Prometheus **`/metrics`** endpoint
@@ -174,7 +174,7 @@ the 16 GB core, which is why these ship as bf16.
 
 ## License & attribution
 
-- **Base model:** `google/gemma-4-E2B-it`, © Google, **Apache-2.0**.
+- **Base model:** `google/gemma-4-E4B-it`, © Google, **Apache-2.0**.
 - **These artifacts** (compiled neffs + scripts) are Apache-2.0 derivatives; the neffs
   contain the base weights in bf16. Redistributed under Apache-2.0 with attribution to
   Google — include the upstream `LICENSE`/`NOTICE` when redistributing.

@@ -6,7 +6,7 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
 MAXNEW = int(os.environ.get("MAXNEW", "30"))

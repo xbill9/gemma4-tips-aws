@@ -1,4 +1,4 @@
-# 🤖 Gemini Workspace Context: AWS Inferentia Gemma-4-E2B DevOps Agent
+# 🤖 Gemini Workspace Context: AWS Inferentia Gemma-4-E4B DevOps Agent
 
 https://docs.lmcache.ai/recipes/gemma4.html
 
@@ -40,11 +40,11 @@ to authenticate to aws run the save-aws-creds.sh
 
 This agent targets AWS deployments utilizing:
 - **Default Region**: `us-east-1` (configurable via `AWS_DEFAULT_REGION`)
-- **Default Model**: `google/gemma-4-E2B-it` (configurable via `MODEL_NAME`)
+- **Default Model**: `google/gemma-4-E4B-it` (configurable via `MODEL_NAME`)
 - **Default S3 Bucket**: `vllm-models-bucket` (configurable via `AWS_BUCKET_NAME`)
 - **Default Service Name**: `gpu-2b-qat-inf-devops-agent`
 
-To serve `google/gemma-4-E2B-it` using vLLM on AWS Inferentia, you must use the AWS Neuron SDK-compatible container image.
+To serve `google/gemma-4-E4B-it` using vLLM on AWS Inferentia, you must use the AWS Neuron SDK-compatible container image.
 
 ### 💡 AWS Inferentia2 Deployment & Cost Characteristics
 AWS Inferentia2 chips are purpose-built for deep learning inference workloads and offer the best cost-per-token performance for the Gemma 4 family. 
@@ -59,7 +59,7 @@ AWS Inferentia2 chips are purpose-built for deep learning inference workloads an
   * Model compilation tracing takes 15–30 minutes on initial startup (unless pre-compiled artifacts are loaded via `NEURON_COMPILED_ARTIFACTS`).
   * Not all quantization formats are supported yet (recommend `neuron_quant` or native INT8/FP8 configurations).
 * **Instance Sizing Guidelines**:
-  * **`inf2.xlarge` / `inf2.8xlarge`**: Best for smaller parameters (e.g., `google/gemma-4-E2B-it` with quantization).
+  * **`inf2.xlarge` / `inf2.8xlarge`**: Best for smaller parameters (e.g., `google/gemma-4-E4B-it` with quantization).
   * **`inf2.24xlarge` / `inf2.48xlarge`**: Required for larger models like `google/gemma-4-31B-it` to meet the high memory footprints of broader parameter counts and larger KV caches.
 
 
@@ -79,7 +79,7 @@ docker run -d --name vllm-server \
   -v /home/ubuntu/.cache/neuron:/root/.cache/neuron \
   public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.16.0-neuronx-py312-sdk2.30.0-ubuntu24.04 \
   python3 -m vllm.entrypoints.openai.api_server \
-  --model google/gemma-4-E2B-it \
+  --model google/gemma-4-E4B-it \
   --quantization neuron_quant \
   --max-model-len 16384 \
   --tensor-parallel-size 2 \
@@ -110,33 +110,33 @@ docker run -d --name vllm-server \
 
 This agent exposes several tool categories via the Model Context Protocol (MCP):
 - **Deployment & Scaling:** 
-  - [deploy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L459)
-  - [destroy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L524)
-  - [status_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L550)
-  - [update_vllm_scaling](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L576)
-  - [get_vllm_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L393)
-  - [get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L606)
-  - [check_gpu_quotas](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L783)
+  - [deploy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L459)
+  - [destroy_vllm](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L524)
+  - [status_vllm](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L550)
+  - [update_vllm_scaling](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L576)
+  - [get_vllm_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L393)
+  - [get_vllm_gpu_deployment_config](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L606)
+  - [check_gpu_quotas](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L783)
 - **Model Transfer & Secret Management:** 
-  - [list_bucket_models](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L267)
-  - [save_hf_token](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L49)
-  - [get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L737)
-  - [get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L718)
+  - [list_bucket_models](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L267)
+  - [save_hf_token](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L49)
+  - [get_huggingface_model_copy_instructions](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L737)
+  - [get_huggingfacehub_download_path](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L718)
 - **System Monitoring & Health:** 
-  - [get_system_status](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L974)
-  - [get_endpoint](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1042)
-  - [get_model_details](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L935)
-  - [verify_model_health](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L824)
+  - [get_system_status](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L974)
+  - [get_endpoint](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L1042)
+  - [get_model_details](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L935)
+  - [verify_model_health](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L824)
 - **Performance Benchmarking:** 
-  - [run_benchmark](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1066)
+  - [run_benchmark](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L1066)
 - **Diagnostics & SRE Remediation:** 
-  - [query_gemma4](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L853)
-  - [query_gemma4_with_stats](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L872)
-  - [query_vllm](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L368)
-  - [analyze_cloud_logging](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L297)
-  - [analyze_gpu_logs](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1215)
-  - [suggest_sre_remediation](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L343)
-  - [get_help](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py#L1228)
+  - [query_gemma4](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L853)
+  - [query_gemma4_with_stats](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L872)
+  - [query_vllm](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L368)
+  - [analyze_cloud_logging](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L297)
+  - [analyze_gpu_logs](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L1215)
+  - [suggest_sre_remediation](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L343)
+  - [get_help](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py#L1228)
 
 ---
 
@@ -186,8 +186,8 @@ As an alternative to SSM-based automation, or if the AWS SSM agent is unresponsi
 ---
 
 ## 📚 Key Source Code File Locations
-- **MCP Server entrypoint**: [server.py](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/server.py)
-- **Test Suite**: [test_agent.py](file:///home/xbill/gemma4-tips-aws/gpu-2B-inf-devops-agent/test_agent.py)
+- **MCP Server entrypoint**: [server.py](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/server.py)
+- **Test Suite**: [test_agent.py](file:///home/xbill/gemma4-tips-aws/gpu-4B-inf-devops-agent/test_agent.py)
 
 ---
 
@@ -448,7 +448,7 @@ Start the OpenAI-compatible endpoint with a serving script:
 export VLLM_NEURON_FRAMEWORK="neuronx-distributed-inference"
 
 vllm serve \
-  --model google/gemma-4-E2B-it \
+  --model google/gemma-4-E4B-it \
   --tensor-parallel-size 2 \
   --max-model-len 16384 \
   --max-num-seqs 8 \
@@ -461,7 +461,7 @@ vllm serve \
   }'
 ```
 
-*Note: For `google/gemma-4-E2B-it` on dual neuron cores (like standard `inf2.8xlarge`), we set `--tensor-parallel-size 2`.*
+*Note: For `google/gemma-4-E4B-it` on dual neuron cores (like standard `inf2.8xlarge`), we set `--tensor-parallel-size 2`.*
 
 ---
 
@@ -473,7 +473,7 @@ Send a test request to your local running container/endpoint:
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-        "model": "google/gemma-4-E2B-it",
+        "model": "google/gemma-4-E4B-it",
         "messages": [
           {"role": "system", "content": "You are a concise assistant."},
           {"role": "user", "content": "List three AWS Neuron optimization tips."}
@@ -527,7 +527,7 @@ export NEURON_COMPILED_ARTIFACTS="./neuron_compiled_models/gemma4-12b"
 #### 2. Enable prefix caching for multi-turn conversations:
 ```bash
 vllm serve \
-  --model google/gemma-4-E2B-it \
+  --model google/gemma-4-E4B-it \
   --tensor-parallel-size 2 \
   --max-model-len 1024 \
   --max-num-seqs 8 \
@@ -610,19 +610,19 @@ If deploying on AWS Inferentia (Inf1/Inf2), ensure that your `neuronx-cc` compil
 
 ---
 
-# 🧬 Google Gemma 4 (2B / E2B) Technical Specifications
+# 🧬 Google Gemma 4 (4B / E4B) Technical Specifications
 
-This section outlines the detailed technical specifications, architectural parameters, and edge-focused design patterns of the **Google Gemma 4 Effective 2B** model (`google/gemma-4-E2B-it`). 
+This section outlines the detailed technical specifications, architectural parameters, and edge-focused design patterns of the **Google Gemma 4 Effective 4B** model (`google/gemma-4-E4B-it`). 
 
-Released on April 2, 2026, the Gemma 4 E2B model is optimized specifically for mobile, browser, and edge deployment through several cutting-edge architectural features.
+Released on April 2, 2026, the Gemma 4 E4B model is optimized specifically for mobile, browser, and edge deployment through several cutting-edge architectural features.
 
 ---
 
 ## 📊 Core Architectural Specs
 
-| Feature | Gemma 4 E2B Specifications |
+| Feature | Gemma 4 E4B Specifications |
 | :--- | :--- |
-| **Model Name/Path** | `google/gemma-4-E2B-it` (Instruct-tuned) / `google/gemma-4-E2B` (Base) |
+| **Model Name/Path** | `google/gemma-4-E4B-it` (Instruct-tuned) / `google/gemma-4-E4B` (Base) |
 | **Effective Parameters** | **2.3 Billion** (active parameters computed per-token) |
 | **Total Parameter Count** | **5.1 Billion** (including Per-Layer Embeddings) |
 | **Model Architecture Class** | `Gemma4ForConditionalGeneration` |
@@ -641,16 +641,16 @@ Released on April 2, 2026, the Gemma 4 E2B model is optimized specifically for m
 
 ## 🧠 Core Architectural Innovations
 
-Gemma 4 E2B introduces two primary architectural innovations designed to maximize intelligence while constraining active execution memory and compute overhead:
+Gemma 4 E4B introduces two primary architectural innovations designed to maximize intelligence while constraining active execution memory and compute overhead:
 
 ### 1. Per-Layer Embeddings (PLE)
-The **"E"** in E2B stands for **"Effective"** parameters. Standard transformer models share a single global embedding table at the input and output. Gemma 4 E2B implements **Per-Layer Embeddings (PLE)**:
+The **"E"** in E4B stands for **"Effective"** parameters. Standard transformer models share a single global embedding table at the input and output. Gemma 4 E4B implements **Per-Layer Embeddings (PLE)**:
 * **The Concept**: Each of the 35 transformer layers has its own specialized parallel token embedding lookup table. 
 * **The Benefit**: Looking up embeddings is computationally cheap (O(1) memory lookup) but highly expressive. By shifting representational capacity into memory-heavy lookup tables, the core transformer attention and MLP matrices can remain incredibly small.
 * **Result**: The model achieves the reasoning capability of a much larger dense network while keeping active FLOPS and latency at a 2.3B parameter level.
 
 ### 2. Shared-Layer KV Redirection (Parameter Sharing)
-To minimize memory footprint during active serving and keep the active Key-Value (KV) cache small, Gemma 4 E2B implements deep KV parameter sharing:
+To minimize memory footprint during active serving and keep the active Key-Value (KV) cache small, Gemma 4 E4B implements deep KV parameter sharing:
 * **Physical Decoder Blocks**: Only **20 physical layers** exist (layers `0` to `19`).
 * **Virtual Decoder Blocks**: **15 virtual layers** exist (layers `20` to `34`).
 * **Redirection Mechanics**: Virtual layers do not allocate new cache tensors. Instead, they redirect and overwrite physical KV projection parameters and caches during forward execution:
@@ -677,7 +677,7 @@ graph LR
 
 ## 🔄 Hybrid Local-Global Attention Pattern
 
-To optimize both context processing speeds and memory utilization over its 128K context window, Gemma 4 E2B alternates between local **Sliding Window Attention (SWA)** and **Global Attention** layers. This attention pattern repeats in cycles of **5 layers**:
+To optimize both context processing speeds and memory utilization over its 128K context window, Gemma 4 E4B alternates between local **Sliding Window Attention (SWA)** and **Global Attention** layers. This attention pattern repeats in cycles of **5 layers**:
 
 ### 1. Local Sliding Window Attention (SWA)
 * **Frequency**: Layers 0, 1, 2, 3 (repeated every 5 layers, `(idx + 1) % 5 != 0`).
@@ -708,7 +708,7 @@ graph TD
 
 ## 🎙 Multimodal Processing Capabilites
 
-Gemma 4 E2B is uniquely native to multimodal edge use-cases, containing built-in lightweight multimodal encoders:
+Gemma 4 E4B is uniquely native to multimodal edge use-cases, containing built-in lightweight multimodal encoders:
 * **Audio Encoder**: A highly compressed **~300 Million** parameter audio processing module native to the model architecture.
 * **Vision Encoder**: A highly optimized **~150 Million** parameter visual feature extractor.
 * **SRE Deployment Configuration**: In text-only serving contexts (such as high-speed backend execution), multimedia features can be explicitly disabled via serving variables to drastically lower memory usage:
@@ -727,6 +727,6 @@ Gemma 4 E2B is uniquely native to multimodal edge use-cases, containing built-in
 | **INT4 Quantized** | ~2.6 GB | ~3.5 - 4.5 GB | Ultra-mobile Devices, Web Browsers (WebGPU) |
 
 > [!TIP]
-> When serving on cloud hardware such as **AWS Inferentia2** (`inf2`), Gemma 4 E2B requires a Tensor Parallelism of 2 (`--tensor-parallel-size 2`) to balance across the physical cores of a single `/dev/neuron0` chip, delivering massive cost savings and high tokens-per-second throughput.
+> When serving on cloud hardware such as **AWS Inferentia2** (`inf2`), Gemma 4 E4B requires a Tensor Parallelism of 2 (`--tensor-parallel-size 2`) to balance across the physical cores of a single `/dev/neuron0` chip, delivering massive cost savings and high tokens-per-second throughput.
 
 

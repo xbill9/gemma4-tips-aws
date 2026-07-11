@@ -1,4 +1,4 @@
-# Option B — Gemma-4-E2B on Inferentia2 via `torch_neuronx.trace()` of HF transformers
+# Option B — Gemma-4-E4B on Inferentia2 via `torch_neuronx.trace()` of HF transformers
 
 Bypasses AWS NxD entirely (NxD cannot express gemma4's within-forward cross-layer KV-sharing).
 Instead we trace the HuggingFace transformers-5.13 `Gemma4TextModel` forward directly. HF threads
@@ -59,5 +59,5 @@ productionization = prefill+decode two-graph with KV cache as graph I/O + seq bu
 6. `torch_neuronx.trace(w,(ie,am,ple), compiler_args=["--model-type","transformer","--auto-cast","none"])`.
 
 ## Box
-inf2.8xlarge `i-01718af33c99f0eeb` (us-east-1), container `gwork`, real weights `/workspace/real-gemma4-E2B-it`,
+inf2.8xlarge `i-01718af33c99f0eeb` (us-east-1), container `gwork`, real weights `/workspace/real-gemma4-E4B-it`,
 scripts/logs `/workspace/optb_trace.py` / `optb_trace.log`. Full details in memory `gemma4-e2b-gibberish-rootcause.md`.

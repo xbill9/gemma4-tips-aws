@@ -7,8 +7,8 @@ async def try_deploy(region, market):
     os.environ["AWS_DEFAULT_REGION"]=region; os.environ["AWS_REGION"]=region
     server.AWS_REGION=region; boto3.setup_default_session(region_name=region)
     try:
-        res=await server.deploy_vllm(service_name="inferentia-2b-devops-agent",
-            model_path="google/gemma-4-E2B-it", key_name="alinux",
+        res=await server.deploy_vllm(service_name="inferentia-4b-devops-agent",
+            model_path="google/gemma-4-E4B-it", key_name="alinux",
             instance_type="inf2.8xlarge", market_type=market)
         print(res, flush=True)
         return "Failed to deploy" not in res and "Instance ID" in res, res

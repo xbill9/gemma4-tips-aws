@@ -1,4 +1,4 @@
-# Baked Docker image (vLLM/OpenAI-compatible) — Gemma-4-E2B on inf2
+# Baked Docker image (vLLM/OpenAI-compatible) — Gemma-4-E4B on inf2
 
 **ECR:** `106059658660.dkr.ecr.us-east-2.amazonaws.com/gemma4-optb:256-64` (also `:latest`)
 ~16.9 GB compressed / 40.4 GB uncompressed (CPU-torch build). Built + verified 2026-07-06.

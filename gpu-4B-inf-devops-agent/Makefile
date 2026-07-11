@@ -1,6 +1,6 @@
 # Configuration - Update these or override via environment variables
-SERVICE_NAME ?= inferentia-2b-devops-agent
-MODEL_PATH ?= google/gemma-4-E2B-it
+SERVICE_NAME ?= inferentia-4b-devops-agent
+MODEL_PATH ?= google/gemma-4-E4B-it
 AWS_REGION ?= us-east-1
 
 install:

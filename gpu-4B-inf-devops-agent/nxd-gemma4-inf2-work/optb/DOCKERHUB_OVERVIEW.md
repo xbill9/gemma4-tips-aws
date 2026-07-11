@@ -1,6 +1,6 @@
-# gemma4-optb — Gemma-4-E2B-it on AWS Inferentia2
+# gemma4-optb — Gemma-4-E4B-it on AWS Inferentia2
 
-Prebuilt, ready-to-run image that serves **`google/gemma-4-E2B-it`** on a single **AWS
+Prebuilt, ready-to-run image that serves **`google/gemma-4-E4B-it`** on a single **AWS
 Inferentia2** device (`inf2.8xlarge`) at **~44 tokens/sec**, via an OpenAI-compatible HTTP
 server. The compiled Neuron artifacts (neffs) + runtime + server are baked in — no
 compilation or Python setup required.
@@ -12,8 +12,8 @@ optimum-neuron stack cannot currently do.
 ## Quick start (on an AWS inf2 instance)
 
 ```bash
-docker pull xbill9/gemma4-optb:latest
-docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb:latest
+docker pull xbill9/gemma4-optb-e4b:latest
+docker run --rm -p 8080:8080 --device=/dev/neuron0 xbill9/gemma4-optb-e4b:latest
 # health:
 curl -s localhost:8080/health
 # generate:
@@ -39,7 +39,7 @@ Routes: `/generate`, `/v1/chat/completions`, `/v1/completions`, `/v1/models`, `/
 
 ## Recipe, neffs, and full model card
 
-🤗 **https://huggingface.co/xbill9/gemma-4-E2B-it-inferentia2** — the compilation scripts,
+🤗 **https://huggingface.co/xbill9/gemma-4-E4B-it-inferentia2** — the compilation scripts,
 the raw neffs, the two-graph KV-cache writeup, and how to recompile for a different context
 window.
 

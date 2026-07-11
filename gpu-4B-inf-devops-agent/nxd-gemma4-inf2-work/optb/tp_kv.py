@@ -1,12 +1,14 @@
-"""TP=2 two-graph KV-cache decode for Gemma4-E2B. Shards q/o/gate/up/down across 2 cores
-(k/v replicated, MQA), traces prefill + static-KV decode via NxD parallel_model_trace,
-runs device greedy, compares to CPU fp32 reference, and measures decode tok/s."""
+"""TP=2 two-graph KV-cache decode for Gemma4-E4B. Shards q/o/gate/up/down across 2 cores.
+K/V are sharded across ranks ONLY when num_kv_heads is divisible by TP; otherwise (e.g. MQA
+nkv=1) they are replicated so a single KV head is never split, and num_key_value_groups is
+adjusted so repeat_kv expands KV to exactly the per-rank query head count. Traces prefill +
+static-KV decode via NxD parallel_model_trace, runs device greedy, compares to CPU fp32."""
 import sys, os, types, time
 m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_trace=None
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 TP = 2
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
@@ -31,6 +33,10 @@ def _build_shared():
     softcap = getattr(mm.config.text_config, "final_logit_softcapping", None)
     return mm, lang, mm.lm_head, softcap, NONSHARED, LINFO, cfg.sliding_window
 
+def _kv_rank_width(nkv):
+    """Per-rank KV head count after sharding: shard when divisible, else replicate (full)."""
+    return nkv // TP if nkv % TP == 0 else nkv
+
 def _shard(lang, cfg_nlayers):
     import torch
     from neuronx_distributed.parallel_layers.layers import ColumnParallelLinear, RowParallelLinear
@@ -46,8 +52,22 @@ def _shard(lang, cfg_nlayers):
         l.weight.data.copy_(orig.weight.data[:, rank*c:(rank+1)*c]); return l
     for lyr in lang.layers[:cfg_nlayers]:
         a = lyr.self_attn
+        hd = a.head_dim
         a.q_proj = col(a.q_proj); a.o_proj = row(a.o_proj)
-        a.num_key_value_groups = a.num_key_value_groups // TP
+        # GQA head sharding. q is always column-sharded -> q_rank = nq//TP heads per rank.
+        # Shard k/v the same way ONLY when nkv is divisible by TP: the q->kv group ratio is then
+        # preserved and num_key_value_groups stays correct untouched. When nkv is NOT divisible
+        # (e.g. MQA nkv=1), splitting a single KV head across cores corrupts the head geometry
+        # (the 4-vs-8 repeat_kv mismatch), so replicate k/v full on every rank and halve the
+        # group count so repeat_kv expands the (full) KV to exactly q_rank heads. With replicated
+        # KV every query head still sees all KV heads, so no GQA scrambling for nkv==1.
+        if getattr(a, "k_proj", None) is not None:
+            nkv = a.k_proj.out_features // hd
+            if nkv % TP == 0:
+                a.k_proj = col(a.k_proj)
+                if getattr(a, "v_proj", None) is not None: a.v_proj = col(a.v_proj)
+            else:
+                a.num_key_value_groups = (a.q_proj.out_features // hd) // nkv
         mlp = lyr.mlp
         mlp.gate_proj = col(mlp.gate_proj); mlp.up_proj = col(mlp.up_proj); mlp.down_proj = row(mlp.down_proj)
 
@@ -120,11 +140,16 @@ def main():
     assert n0 <= BUCKET
     print("prompt", n0, "MAX", MAX, "BUCKET", BUCKET, flush=True)
 
+    # NOTE: parallel_model_trace compiles both TP ranks' neffs concurrently (peak host RAM =
+    # 2x a single compile). We rely on a large host swapfile to absorb that peak. (SPMD mode
+    # would compile a single rank but needs a checkpoint_loader_callable refactor;
+    # max_parallel_compilations=1 deadlocks at the trace-time xm.rendezvous barrier.)
     print("tracing TP prefill ...", flush=True)
     pre = neuronx_distributed.trace.parallel_model_trace(get_pre, (embed_ids(prompt+[0]*(BUCKET-n0))[0], torch.tensor([[1]*n0+[0]*(BUCKET-n0)]), embed_ids(prompt+[0]*(BUCKET-n0))[1]), tp_degree=TP, compiler_args=CARGS)
     print("PREFILL_TRACED", flush=True)
     ie1, ple1 = embed_ids([prompt[-1]])
-    kb0=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]; vb0=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]
+    # per-rank KV width: nkv//TP when divisible (k/v sharded), else full nkv (k/v replicated)
+    kb0=[torch.zeros(1,_kv_rank_width(LINFO[i][0]),MAX,LINFO[i][1]) for i in NONSHARED]; vb0=[torch.zeros(1,_kv_rank_width(LINFO[i][0]),MAX,LINFO[i][1]) for i in NONSHARED]
     pid,oh,fm,sm = host_pos(n0)
     print("tracing TP decode ...", flush=True)
     dec = neuronx_distributed.trace.parallel_model_trace(get_dec, (ie1, ple1, pid, oh, fm, sm, kb0, vb0), tp_degree=TP, compiler_args=CARGS)
@@ -133,7 +158,8 @@ def main():
     def run_greedy(pre_fn, dec_fn, maxnew):
         pad = prompt+[0]*(BUCKET-n0); ie,ple=embed_ids(pad); am=torch.tensor([[1]*n0+[0]*(BUCKET-n0)])
         lg,ks,vs = pre_fn(ie,am,ple); first=int(lg[0,n0-1].argmax())
-        kb=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]; vb=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]
+        print("KV width returned by prefill:", [ks[j].shape[1] for j in range(len(NONSHARED))][:3], "...", flush=True)
+        kb=[torch.zeros(1,ks[j].shape[1],MAX,LINFO[i][1]) for j,i in enumerate(NONSHARED)]; vb=[torch.zeros(1,vs[j].shape[1],MAX,LINFO[i][1]) for j,i in enumerate(NONSHARED)]
         for j in range(len(NONSHARED)):
             kb[j][:,:,:n0,:]=ks[j][:,:,:n0,:]; vb[j][:,:,:n0,:]=vs[j][:,:,:n0,:]
         seq=[first]; cur=n0; t0=time.time(); steps=0
@@ -143,7 +169,6 @@ def main():
             l1,kb,vb=dec_fn(e1,p1,pi,o,f,s,kb,vb); seq.append(int(l1[0,0].argmax())); cur+=1; steps+=1
         return seq, (time.time()-t0), steps
 
-    # CPU reference (eager, same static-KV logic) for correctness
     print("=== CPU ref greedy ===", flush=True)
     def cpu_pre(ie,am,ple):
         from transformers import DynamicCache

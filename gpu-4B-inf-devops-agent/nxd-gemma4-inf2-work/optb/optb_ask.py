@@ -1,6 +1,6 @@
 import os, sys, torch, time
 torch.manual_seed(0)
-MP="/workspace/real-gemma4-E2B-it"
+MP="/workspace/real-gemma4-E4B-it"
 PROMPT=sys.argv[1] if len(sys.argv)>1 else "What is Gemma?"
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
 import torch_neuronx

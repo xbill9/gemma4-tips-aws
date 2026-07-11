@@ -1,11 +1,11 @@
-Gemma-4-E2B inference SERVER on Inferentia2 (Option B two-graph KV-cache) — 2026-07-06
+Gemma-4-E4B inference SERVER on Inferentia2 (Option B two-graph KV-cache) — 2026-07-06
 box i-01718af33c99f0eeb (inf2.8xlarge, us-east-1). Stdlib http.server, no deps.
 Loads both neffs ONCE (~82s), then serves POST /generate {"prompt": "..."} fast.
 
 Startup: READY in 81.8s — serving on :8080
 
 GET /  ->
-  {"status":"ok","model":"gemma-4-E2B-it (Option B / torch_neuronx)","device":"Inferentia2",
+  {"status":"ok","model":"gemma-4-E4B-it (Option B / torch_neuronx)","device":"Inferentia2",
    "max_total_tokens":128,"max_prompt_tokens":32}
 
 POST /generate:

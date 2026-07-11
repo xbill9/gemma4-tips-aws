@@ -1,4 +1,4 @@
-"""TP=2 + KV-aliasing HTTP server for Gemma4-E2B (~59-72 tok/s @ 2048, both cores).
+"""TP=2 + KV-aliasing HTTP server for Gemma4-E4B (~59-72 tok/s @ 2048, both cores).
 
 Loads serialized parallel neffs (tpa_pre/tpa_dec) via parallel_model_load, seeds per-rank
 device-resident KV per request. Full serving layer: sampling (temperature/top_k/top_p), SSE
@@ -16,9 +16,9 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP=os.environ.get("MODEL_DIR","/workspace/real-gemma4-E2B-it"); TP=int(os.environ.get("TP_DEGREE","2"))
+MP=os.environ.get("MODEL_DIR","/workspace/real-gemma4-E4B-it"); TP=int(os.environ.get("TP_DEGREE","2"))
 MAX=int(os.environ.get("KV_MAX","2048")); BUCKET=int(os.environ.get("KV_BUCKET","512"))
-PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E2B-it")
+PORT=int(os.environ.get("PORT","8080")); MODEL_NAME=os.environ.get("MODEL_NAME","gemma-4-E4B-it")
 PRE_DIR=os.environ.get("TPA_PRE","/workspace/tpa_pre"); DEC_DIR=os.environ.get("TPA_DEC","/workspace/tpa_dec")
 NEG_INF=float("-inf")
 MAX_QUEUE=int(os.environ.get("MAX_QUEUE","8"))          # max concurrent+queued requests -> 429

@@ -53,7 +53,7 @@ AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "vllm-models-bucket")
 
 # The URL of the self-hosted vLLM service on AWS EC2
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL")
-MODEL_NAME = os.getenv("MODEL_NAME", "google/gemma-4-E2B-it")
+MODEL_NAME = os.getenv("MODEL_NAME", "google/gemma-4-E4B-it")
 HF_SECRET_ID = "hf-token"
 
 
@@ -104,7 +104,7 @@ async def save_hf_token(token: str) -> str:
         return "❌ Failed to save token to AWS Secrets Manager."
 
 
-DEFAULT_SERVICE_NAME = "inferentia-2b-devops-agent"
+DEFAULT_SERVICE_NAME = "inferentia-4b-devops-agent"
 
 
 def discover_vllm_url(service_name: str = DEFAULT_SERVICE_NAME) -> Optional[str]:
@@ -214,7 +214,7 @@ docker run -d --name gemma-optb \\
   --device /dev/neuron0 \\
   --restart unless-stopped \\
   -p 8080:8080 \\
-  xbill9/gemma4-optb:latest        # inf2.8xlarge; use xbill9/gemma4-optb:slim on inf2.xlarge
+  xbill9/gemma4-optb-e4b:latest        # inf2.8xlarge; use xbill9/gemma4-optb-e4b:slim on inf2.xlarge
 
 # Serves: /v1/chat/completions, /v1/completions, /v1/models, /generate, /health
 """
@@ -400,7 +400,7 @@ def _get_inferentia_user_data(model_path: str, hf_token_expr: str = "", instance
     # ~73 GB image (fits the 300 GB root below), uses the 48 GB swap for the neff-load peak on
     # small hosts, and MUST run with --ipc=host (parallel_model_load). Supersedes the single-core
     # :slim/:latest (~25 tok/s). For a marginally faster host load on 8xlarge, :tp2-2048 also works.
-    optb_image = "xbill9/gemma4-optb:tp2-slim"
+    optb_image = "xbill9/gemma4-optb-e4b:tp2-slim"
 
     user_data = f"""#!/bin/bash
 # Install and start SSM agent (if not present) and add SSH key
@@ -425,7 +425,7 @@ if ! command -v docker &> /dev/null; then
     systemctl enable docker
 fi
 
-# 2. Optimized Swap for 2B model on 16GB RAM
+# 2. Optimized Swap for E4B model on 16GB RAM
 if [ ! -f /swapfile_large ]; then
     echo "Creating 48GB optimized swap..."
     fallocate -l 48G /swapfile_large
@@ -514,7 +514,7 @@ echo "Option B TP server starting on :8080 (OpenAI-compatible; ~80-210s warmup i
 @mcp.tool()
 def get_vllm_deployment_config(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E2B-it",
+    model_path: str = "google/gemma-4-E4B-it",
     key_name: str = "alinux",
     gpu_memory_utilization: float = 0.95,
     instance_type: str = "inf2.8xlarge",
@@ -530,7 +530,7 @@ def get_vllm_deployment_config(
         instance_type: The EC2 instance type (default: 'inf2.xlarge').
     """
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        model_path = "google/gemma-4-E2B-it"
+        model_path = "google/gemma-4-E4B-it"
 
     image_id = "ami-04604f21b81ffbd87" # Fallback for us-east-1
 
@@ -553,7 +553,7 @@ def get_vllm_deployment_config(
         f"#### 2. Run Instance CLI Command:\n"
         f"```bash\n{aws_cmd}\n```\n\n"
         f"#### 3. Prerequisites:\n"
-        f"- No HF token needed — the `xbill9/gemma4-optb` image bakes in the weights + compiled neffs.\n"
+        f"- No HF token needed — the `xbill9/gemma4-optb-e4b` image bakes in the weights + compiled neffs.\n"
         f"- Ensure the security group allows inbound TCP traffic on port `8080`.\n"
         f"- On `inf2.xlarge` (16GB RAM) the user-data adds swap (required for the neff-load peak) and uses the `:slim` image.\n"
         f"- *Note:* The resolved fallback AMI for AWS Neuron on Ubuntu 22.04 in region `{AWS_REGION}` is `{image_id}`."
@@ -563,7 +563,7 @@ def get_vllm_deployment_config(
 @mcp.tool()
 async def deploy_vllm(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E2B-it",
+    model_path: str = "google/gemma-4-E4B-it",
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
     instance_type: str = "inf2.8xlarge",
@@ -646,8 +646,8 @@ async def deploy_vllm(
         logger.info(f"Failed to describe DLAMI images: {e}. Using fallback `{image_id}`.")
 
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
-        model_path = "google/gemma-4-E2B-it"
+        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E4B-it' for Inferentia.")
+        model_path = "google/gemma-4-E4B-it"
 
     user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
@@ -818,7 +818,7 @@ async def deploy_vllm(
 @mcp.tool()
 async def start_ec2(
     service_name: str = DEFAULT_SERVICE_NAME,
-    model_path: str = "google/gemma-4-E2B-it",
+    model_path: str = "google/gemma-4-E4B-it",
     key_name: str = "alinux",
     subnet_id: Optional[str] = None,
     instance_type: str = "inf2.xlarge",
@@ -968,8 +968,8 @@ async def start_ec2(
         logger.info(f"Failed to fetch {ami_type} DLAMI dynamically via SSM: {e}. Using fallback `{image_id}`.")
 
     if any(q in model_path.lower() for q in ["qat", "w4a16", "ct"]):
-        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E2B-it' for Inferentia.")
-        model_path = "google/gemma-4-E2B-it"
+        logger.warning("QAT compressed-tensors are GPU-only. Falling back to 'google/gemma-4-E4B-it' for Inferentia.")
+        model_path = "google/gemma-4-E4B-it"
 
     user_data = _get_inferentia_user_data(model_path, hf_token, instance_type)
 
@@ -1352,7 +1352,7 @@ def update_vllm_scaling(instance_type: str, service_name: str = DEFAULT_SERVICE_
 @mcp.tool()
 def get_vllm_gpu_deployment_config(
     cluster_name: str = "eks-gpu-cluster",
-    model_name: str = "google/gemma-4-E2B-it",
+    model_name: str = "google/gemma-4-E4B-it",
     instance_type: str = "inf2.xlarge",
 ) -> str:
     """
@@ -1364,7 +1364,7 @@ def get_vllm_gpu_deployment_config(
         instance_type: The EC2 instance type (default: 'inf2.xlarge').
     """
     if any(q in model_name.lower() for q in ["qat", "w4a16", "ct"]):
-        model_name = "google/gemma-4-E2B-it"
+        model_name = "google/gemma-4-E4B-it"
 
     manifest = f"""
 ### 🌀 vLLM on EKS AWS Inferentia (AWS Neuron Deployment)
@@ -1455,7 +1455,7 @@ spec:
 
 @mcp.tool()
 async def get_huggingfacehub_download_path(
-    repo_id: str = "google/gemma-4-E2B-it",
+    repo_id: str = "google/gemma-4-E4B-it",
 ) -> str:
     """
     Returns the local cache path for a Hugging Face model using huggingface_hub.
@@ -1474,14 +1474,14 @@ async def get_huggingfacehub_download_path(
 
 @mcp.tool()
 def get_huggingface_model_copy_instructions(
-    repo_id: str = "google/gemma-4-E2B-it",
+    repo_id: str = "google/gemma-4-E4B-it",
     bucket_name: Optional[str] = None,
 ) -> str:
     """
     Provides instructions and commands to transfer Gemma model weights from Hugging Face to your S3 bucket.
 
     Args:
-        repo_id: The Hugging Face repo ID (e.g., 'google/gemma-4-E2B-it').
+        repo_id: The Hugging Face repo ID (e.g., 'google/gemma-4-E4B-it').
         bucket_name: The target S3 bucket name (defaults to AWS_BUCKET_NAME).
     """
     if not bucket_name:

@@ -1,4 +1,4 @@
-"""Persistent Gemma-4-E2B inference server on Inferentia2 (Option B, two-graph KV-cache).
+"""Persistent Gemma-4-E4B inference server on Inferentia2 (Option B, two-graph KV-cache).
 Loads both neffs ONCE, then serves fast (~44 tok/s). Stdlib http.server, no deps.
 Routes:
   GET  /                     health
@@ -11,7 +11,7 @@ import os
 os.environ["NEURON_RT_VISIBLE_CORES"] = "0,1"
 import sys, json, time, threading, torch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "128"))
 BUCKET = int(os.environ.get("KV_BUCKET", "32"))
 PRE_NEFF = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_neff.pt")
@@ -19,7 +19,7 @@ DEC_NEFF = os.environ.get("KV_DEC_OUT", "/workspace/kv_dec_neff.pt")
 NEG = torch.finfo(torch.float32).min
 NEG_INF = float("-inf")
 PORT = int(os.environ.get("PORT", "8080"))
-MODEL_NAME = "gemma-4-E2B-it"
+MODEL_NAME = "gemma-4-E4B-it"
 
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
 import torch_neuronx

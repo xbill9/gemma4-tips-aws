@@ -5,7 +5,7 @@ import os
 os.environ.setdefault("NEURON_RT_VISIBLE_CORES", "1")
 import torch
 torch.manual_seed(0)
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
 NGEN = int(os.environ.get("NGEN", "45"))

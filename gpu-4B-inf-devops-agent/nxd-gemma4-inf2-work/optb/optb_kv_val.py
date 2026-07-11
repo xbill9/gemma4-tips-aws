@@ -6,7 +6,7 @@ import os
 os.environ.setdefault("NEURON_RT_VISIBLE_CORES", "1")   # container keeps core 0
 import sys, time, torch
 torch.manual_seed(0)
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
 PRE = os.environ.get("KV_PRE_OUT", "/workspace/kv_pre_2048.pt")

@@ -1,6 +1,6 @@
 import os, sys, torch, transformers, time
 torch.manual_seed(0)
-MP="/workspace/real-gemma4-E2B-it"
+MP="/workspace/real-gemma4-E4B-it"
 from transformers import AutoTokenizer, Gemma4ForConditionalGeneration, DynamicCache
 
 tok=AutoTokenizer.from_pretrained(MP)

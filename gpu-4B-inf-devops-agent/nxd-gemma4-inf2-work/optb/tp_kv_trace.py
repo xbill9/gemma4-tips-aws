@@ -1,4 +1,4 @@
-"""TP=2 two-graph KV-cache decode for Gemma4-E2B. Shards q/o/gate/up/down across 2 cores
+"""TP=2 two-graph KV-cache decode for Gemma4-E4B. Shards q/o/gate/up/down across 2 cores
 (k/v replicated, MQA), traces prefill + static-KV decode via NxD parallel_model_trace,
 runs device greedy, compares to CPU fp32 reference, and measures decode tok/s."""
 import sys, os, types, time
@@ -6,7 +6,7 @@ m = types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_tra
 sys.modules["transformers.utils.fx"] = m
 import multiprocessing
 
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 TP = 2
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
@@ -47,7 +47,10 @@ def _shard(lang, cfg_nlayers):
     for lyr in lang.layers[:cfg_nlayers]:
         a = lyr.self_attn
         a.q_proj = col(a.q_proj); a.o_proj = row(a.o_proj)
-        a.num_key_value_groups = a.num_key_value_groups // TP
+        # GQA (nkv=2): shard k/v across ranks too, keep num_key_value_groups unchanged so the
+        # q->kv head mapping stays correct (halving groups scrambles GQA). global alt-attn: v_proj=None.
+        if getattr(a, "k_proj", None) is not None: a.k_proj = col(a.k_proj)
+        if getattr(a, "v_proj", None) is not None: a.v_proj = col(a.v_proj)
         mlp = lyr.mlp
         mlp.gate_proj = col(mlp.gate_proj); mlp.up_proj = col(mlp.up_proj); mlp.down_proj = row(mlp.down_proj)
 

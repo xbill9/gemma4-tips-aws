@@ -4,7 +4,7 @@ Target: 2048 decode 25 -> ~40+ tok/s. Validates SEQ_MATCH + measures tok/s."""
 import os, sys, time, torch
 torch.manual_seed(0)
 MODE = sys.argv[1] if len(sys.argv) > 1 else "trace"
-MP = "/workspace/real-gemma4-E2B-it"
+MP = "/workspace/real-gemma4-E4B-it"
 MAX = int(os.environ.get("KV_MAX", "2048"))
 BUCKET = int(os.environ.get("KV_BUCKET", "512"))
 MAXNEW = int(os.environ.get("MAXNEW", "30"))
