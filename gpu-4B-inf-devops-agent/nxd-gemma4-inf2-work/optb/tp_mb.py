@@ -219,8 +219,12 @@ def main():
     save_to=os.environ.get("MB_SAVE")
     if save_to:
         print("saving model to",save_to,flush=True)
-        model.save(save_to, save_weights=True)   # bundles neffs + sharded weights -> load with NxDModel.load
+        torch.jit.save(model, save_to)   # the traced executor embeds neffs+weights; reload via torch.jit.load
         print("MB_SAVED",save_to,flush=True)
+        # in-process reload sanity: fresh jit.load must reproduce the same first token
+        rl=torch.jit.load(save_to)
+        rr=rl(*_inputs(rlang,pad,SW,NEG,list(range(BUCKET)))); rlg=rr[0] if isinstance(rr,(tuple,list)) else rr
+        print("RELOAD first-tok:",int(rlg[0,n0-1].argmax()),"== device",first, "->", int(rlg[0,n0-1].argmax())==first, flush=True)
 
 if __name__=="__main__":
     if os.environ.get("_TP_CHILD")!="1":

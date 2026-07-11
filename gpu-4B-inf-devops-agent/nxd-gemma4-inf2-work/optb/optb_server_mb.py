@@ -94,8 +94,8 @@ def _watch_spot():
 def boot():
     global torch, tok, lang, SW, EOS, dec, NEG
     import torch
+    import torch_neuronx  # registers torch.classes.neuron ops needed to deserialize the neffs
     from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
-    from neuronx_distributed.trace.nxd_model.nxd_model import NxDModel
     NEG=torch.finfo(torch.float32).min
     torch.set_num_threads(int(os.environ.get("HOST_THREADS", os.cpu_count() or 16)))   # host embeddings only
     tok=AutoTokenizer.from_pretrained(MP)
@@ -103,7 +103,7 @@ def boot():
     mm=Gemma4ForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
-    t=time.time(); dec=NxDModel.load(MB_PATH)   # weight-sharing prefill+decode buckets (device-resident, aliased KV)
+    t=time.time(); dec=torch.jit.load(MB_PATH)   # weight-sharing prefill+decode buckets (device-resident, aliased KV)
     warm=tok.apply_chat_template([{"role":"user","content":"Hi"}],add_generation_prompt=True,return_tensors="pt",return_dict=True)["input_ids"][0].tolist()
     try: generate_ids(warm,3,0.0,0,1.0,set())    # first forward loads the graphs onto the cores
     except Exception as e: print("warmup:",e,flush=True)
