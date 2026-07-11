@@ -25,11 +25,26 @@ def _discover():
     softcap=getattr(mm.config.text_config,"final_logit_softcapping",None)
     return mm,lang,mm.lm_head,softcap,NONSHARED,LINFO,cfg.sliding_window
 
+def _structure():
+    """Build model STRUCTURE from config only (no weight load) — safe under ModelBuilder meta context."""
+    import torch
+    from transformers import Gemma4ForConditionalGeneration, AutoConfig
+    cfg=AutoConfig.from_pretrained(MP)
+    mm=Gemma4ForConditionalGeneration(cfg); mm.eval()
+    lang=mm.model.language_model; lc=lang.config
+    NONSHARED,LINFO=[],{}
+    for i,lyr in enumerate(lang.layers[:lc.num_hidden_layers]):
+        a=lyr.self_attn
+        if not a.is_kv_shared_layer:
+            hd=a.head_dim; NONSHARED.append(i); LINFO[i]=(a.k_proj.out_features//hd,hd)
+    softcap=getattr(mm.config.text_config,"final_logit_softcapping",None)
+    return mm,lang,mm.lm_head,softcap,NONSHARED,LINFO,lc.sliding_window
+
 def build_module():
     """Build the sharded Gemma4 Wrap: parallel-layer STRUCTURE only (weights come from checkpoint)."""
     import torch
     from neuronx_distributed.parallel_layers.layers import ColumnParallelLinear, RowParallelLinear
-    mm,lang,lm_head,softcap,NONSHARED,LINFO,SW=_discover()
+    mm,lang,lm_head,softcap,NONSHARED,LINFO,SW=_structure()
     class GeluTanh(torch.nn.Module):
         def forward(s,x): return 0.5*x*(1.0+torch.tanh(0.7978845608028654*(x+0.044715*x*x*x)))
     for mod in lang.modules():
@@ -76,14 +91,20 @@ def build_module():
 
 
 def checkpoint_loader():
-    """Full fp32 state dict keyed to match the Wrap module (lang.* + head.*)."""
-    import torch
-    mm,lang,lm_head,_sc,_ns,_li,_sw=_discover()
+    """Full fp32 state dict keyed to the Wrap module (lang.*/head.*), loaded DIRECTLY from
+    safetensors (no from_pretrained — that trips ModelBuilder's patched meta param registration)."""
+    import torch, glob
+    from safetensors.torch import load_file
+    raw={}
+    for fp in sorted(glob.glob(MP+"/*.safetensors")): raw.update(load_file(fp))
     sd={}
-    for k,v in lang.state_dict().items():
-        if "embed_tokens" in k: continue
-        sd["lang."+k]=v.to(torch.float32)
-    for k,v in lm_head.state_dict().items(): sd["head."+k]=v.to(torch.float32)
+    for k,v in raw.items():
+        if k=="model.language_model.embed_tokens.weight":
+            sd["head.weight"]=v.to(torch.float32)                 # tied lm_head (exact match, NOT embed_tokens_per_layer)
+        elif k.startswith("model.language_model."):
+            sd["lang."+k[len("model.language_model."):]]=v.to(torch.float32)
+        elif k.startswith("lm_head."):
+            sd["head."+k[len("lm_head."):]]=v.to(torch.float32)   # explicit head if untied
     return sd
 
 def _inputs(lang, ids, SW, NEG, positions):
@@ -122,10 +143,61 @@ def main():
     print("tracing ...",flush=True)
     model=mb.trace(initialize_model_weights=True)
     print("MB_TRACED",flush=True)
-    try:
-        from neuronx_distributed.trace import parallel_model_save
-        parallel_model_save(model,"/workspace/tpmb"); print("MB_SAVED",flush=True)
-    except Exception as e: print("save skipped:",e,flush=True)
+    # === in-process validation: device prefill+decode buckets vs CPU fp32 reference ===
+    import time
+    from transformers import DynamicCache
+    softcap=getattr(_mm.config.text_config,"final_logit_softcapping",None); head=_mm.lm_head
+    ec=_mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
+    class _G(torch.nn.Module):
+        def forward(s,x): return 0.5*x*(1.0+torch.tanh(0.7978845608028654*(x+0.044715*x*x*x)))
+    for mod in rlang.modules():
+        if hasattr(mod,"act_fn"): mod.act_fn=_G()
+    def _sc2(lg): return softcap*torch.tanh(lg/softcap) if softcap else lg
+    def embR(ids):
+        idt=torch.tensor([ids])
+        with torch.no_grad(): ie=rlang.embed_tokens(idt); ple=rlang.get_per_layer_inputs(idt,ie)
+        return ie,ple
+    def cpuref():
+        ie,ple=embR(prompt); c=DynamicCache()
+        with torch.no_grad():
+            out=rlang(inputs_embeds=ie,per_layer_inputs=ple,attention_mask=torch.ones(1,n0,dtype=torch.long),use_cache=True,past_key_values=c)
+            first=int(_sc2(head(out.last_hidden_state))[0,n0-1].argmax())
+        KS=[c.layers[i].keys for i in NONSHARED]; VS=[c.layers[i].values for i in NONSHARED]
+        class SKV:
+            is_compileable=False
+            def __init__(s,kb,vb,oh): s.key={i:kb[j] for j,i in enumerate(NONSHARED)}; s.val={i:vb[j] for j,i in enumerate(NONSHARED)}; s.oh=oh
+            def update(s,k,v,idx,*a,**kw): s.key[idx]=s.key[idx]*(1.0-s.oh)+k*s.oh; s.val[idx]=s.val[idx]*(1.0-s.oh)+v*s.oh; return s.key[idx],s.val[idx]
+            def get_seq_length(s,*a,**k): return 0
+        def hp(pos):
+            ar=torch.arange(MAX); oh=(ar==pos).view(1,1,MAX,1).float(); valid=ar<=pos
+            fm=torch.where(valid,0.0,NEG).view(1,1,1,MAX); sm=torch.where(valid&(ar>pos-SW),0.0,NEG).view(1,1,1,MAX)
+            return torch.tensor([[pos]]),oh,fm,sm
+        kb=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]; vb=[torch.zeros(1,LINFO[i][0],MAX,LINFO[i][1]) for i in NONSHARED]
+        for j in range(len(NONSHARED)): kb[j][:,:,:n0,:]=KS[j][:,:,:n0,:]; vb[j][:,:,:n0,:]=VS[j][:,:,:n0,:]
+        seq=[first]; cur=n0
+        for _ in range(30):
+            if seq[-1] in EOS: break
+            e1,p1=embR([seq[-1]]); pi,oh,fm,sm=hp(cur); cache=SKV(kb,vb,oh)
+            with torch.no_grad():
+                out=rlang(inputs_embeds=e1,per_layer_inputs=p1,position_ids=pi,attention_mask={"full_attention":fm,"sliding_attention":sm},use_cache=True,past_key_values=cache)
+                lg=_sc2(head(out.last_hidden_state))
+            kb=[cache.key[i] for i in NONSHARED]; vb=[cache.val[i] for i in NONSHARED]
+            seq.append(int(lg[0,0].argmax())); cur+=1
+        return seq
+    print("=== CPU ref ===",flush=True); cpu_seq=cpuref()
+    def dcall(a): r=model(*a); return r[0] if isinstance(r,(tuple,list)) else r
+    pad=prompt+[0]*(BUCKET-n0)
+    print("=== DEVICE (bucketed) ===",flush=True)
+    dcall(_inputs(rlang,pad,SW,NEG,list(range(BUCKET))))                # warmup
+    t0=time.time(); lg=dcall(_inputs(rlang,pad,SW,NEG,list(range(BUCKET)))); pf=time.time()-t0
+    first=int(lg[0,n0-1].argmax()); seq=[first]; cur=n0
+    for _ in range(30):
+        if seq[-1] in EOS: break
+        l1=dcall(_inputs(rlang,[seq[-1]],SW,NEG,[cur])); seq.append(int(l1[0,0].argmax())); cur+=1
+    print("CPU GEN:",repr(tok.decode([x for x in cpu_seq if x not in EOS],skip_special_tokens=True)),flush=True)
+    print("DEV GEN:",repr(tok.decode([x for x in seq if x not in EOS],skip_special_tokens=True)),flush=True)
+    print("SEQ_MATCH", cpu_seq==seq, flush=True)
+    print(f"DEVICE PREFILL first-token: {pf*1000:.0f} ms  [vs ~1400-1600ms CPU prefill]",flush=True)
     print("TPMB_OK",flush=True)
 
 if __name__=="__main__":
