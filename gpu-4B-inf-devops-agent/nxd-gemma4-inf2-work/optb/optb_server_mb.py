@@ -104,6 +104,7 @@ def boot():
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
     t=time.time(); dec=torch.jit.load(MB_PATH)   # weight-sharing prefill+decode buckets (device-resident, aliased KV)
+    dec.nxd_model.initialize_with_saved_weights(torch.tensor(int(os.environ.get("START_RANK","0"))))  # load saved sharded weights onto cores
     warm=tok.apply_chat_template([{"role":"user","content":"Hi"}],add_generation_prompt=True,return_tensors="pt",return_dict=True)["input_ids"][0].tolist()
     try: generate_ids(warm,3,0.0,0,1.0,set())    # first forward loads the graphs onto the cores
     except Exception as e: print("warmup:",e,flush=True)
