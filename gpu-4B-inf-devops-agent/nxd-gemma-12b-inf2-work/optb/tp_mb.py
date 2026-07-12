@@ -30,6 +30,8 @@ def _structure():
     import torch
     from transformers import Gemma4UnifiedForConditionalGeneration, AutoConfig
     cfg=AutoConfig.from_pretrained(MP)
+    cfg._attn_implementation="eager"                                   # avoid fused-attention custom-call
+    if hasattr(cfg,"text_config"): cfg.text_config._attn_implementation="eager"  # (SBUF overflow at sliding_window=1024)
     mm=Gemma4UnifiedForConditionalGeneration(cfg); mm.eval()
     lang=mm.model.language_model; lc=lang.config
     NONSHARED,LINFO=[],{}
