@@ -1,11 +1,10 @@
-"""TP=2 + DEVICE-PREFILL HTTP server for Gemma4-E4B (both cores).
+"""TP=2 + DEVICE-PREFILL HTTP server for Gemma-4 12B (gemma4_unified), both cores.
 
-Loads a single weight-sharing NxDModel (ModelBuilder trace, `NxDModel.load`) holding TWO buckets —
-prefill (seq=BUCKET) and decode (seq=1) — that SHARE one fp32 sharded weight set and an on-device
-aliased KV cache. Unlike the CPU-seed-prefill server (optb_server_tp.py), the prompt is prefilled
-ON DEVICE (~80ms for a 16-tok prompt vs ~1.4-1.6s host fp32) — the first-token latency win for 2B
-parity. Host only computes embeddings (embed_tokens + get_per_layer_inputs); the transformer +
-head + softcap all run on the NeuronCores. The aliased KV persists across the prefill->decode calls
+Loads a single weight-sharing NxDModel (ModelBuilder trace, `torch.jit.load`) holding TWO buckets —
+prefill (seq=BUCKET) and decode (seq=1) — that SHARE one bf16 sharded weight set and an on-device
+aliased KV cache. The prompt is prefilled ON DEVICE (~0.1-0.2s vs ~1.5s host fp32) — the first-token
+latency win. Host computes ONLY the scaled word embedding (gemma4_unified has no PLE); the
+transformer + head + softcap all run on the NeuronCores. The aliased KV persists across the prefill->decode calls
 of a request; each request's prefill fully rewrites the prompt region (slots 0..BUCKET-1) and decode
 writes slots n0.. — stale slots are never attended (masked), so no explicit per-request KV reset is
 needed. Full serving layer: sampling (temperature/top_k/top_p), SSE streaming, /metrics, spot-drain +
