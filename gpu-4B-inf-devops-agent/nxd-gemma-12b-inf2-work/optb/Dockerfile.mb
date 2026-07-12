@@ -18,6 +18,7 @@ COPY optb_server_mb.py /app/optb_server_mb.py
 
 ENV MODEL_DIR=/workspace/real-gemma-12b-it \
     MB_PATH=/workspace/mb_12b_256.pt \
+    MODEL_NAME=gemma-4-12B-it \
     KV_MAX=256 KV_BUCKET=64 \
     NEURON_RT_VISIBLE_CORES=0,1 PORT=8080
 EXPOSE 8080
