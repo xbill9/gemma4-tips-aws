@@ -41,6 +41,34 @@ What's new is the *tensor-parallel compilation recipe*: a way to shard Gemma-4-E
 | Context | shipped at `KV_MAX=512/BUCKET=128` and `KV_MAX=2048/BUCKET=512` |
 | Output parity | Greedy decode **token-for-token identical** to the CPU float reference (`SEQ_MATCH True`) |
 
+## ⚡ Update — on-device prefill (recommended build)
+
+The original build seeds the prompt with a **host-CPU prefill** (~1.4–1.6 s to first token). A newer
+build runs **prefill on-device** via a single weight-sharing `ModelBuilder` trace — prefill and decode
+as two buckets of *one* resident model, bf16 sharded weights, on-device aliased KV:
+
+| | host-CPU prefill (`tp_alias`) | **device prefill (`tp_mb`, bf16)** |
+|---|---|---|
+| First-token latency | ~1.4–1.6 s | **~0.16 s** (≈9× faster) |
+| Decode | 31–34 tok/s | **~39 tok/s** |
+| Correctness | `SEQ_MATCH True` | `SEQ_MATCH True` |
+
+**Fastest path — prebuilt Docker image** (bundles the compiled model + server):
+
+```bash
+docker run -d --device /dev/neuron0 --ipc=host -p 8080:8080 \
+  xbill9/gemma4-optb-e4b:tp2-devprefill-512
+curl -s localhost:8080/generate -d '{"prompt":"What is AWS Inferentia?","max_tokens":60}'
+```
+
+Serves OpenAI-compatible routes (`/v1/chat/completions`, `/v1/completions`) plus `/generate`,
+`/health`, `/metrics`. To build it yourself: `MB_WDTYPE=bf16 KV_MAX=512 KV_BUCKET=128 MB_SAVE=mb_e4b_512_bf16.pt python tp_mb.py`
+(compiles + saves the model), then serve with `optb_server_mb.py` / package with `Dockerfile.mb`.
+
+> The one non-obvious fix that made device prefill correct: Gemma-4's per-layer `layer_scalar`
+> is a **buffer**, and NxD's `ModelBuilder` weight-sharding loads *parameters* only — so it must be
+> copied from the checkpoint by hand, else every layer over-scales ~16× into garbage.
+
 ## Why single-core doesn't work (and this does)
 
 A single Option-B neff for E4B materializes **~15.4 GB of fp32 model constants**, and a second
@@ -84,6 +112,10 @@ solves all three:
 | `tpa_dec_2048.tar.gz` | Decode neff @ `KV_MAX=2048` |
 | `tp_alias_trace.py` | Compiles the sharded decode neff (`parallel_model_trace` + aliases → `parallel_model_save`) |
 | `tp_alias_run.py` | CPU-seed prefill + device greedy decode; validates `SEQ_MATCH` vs the CPU reference and measures tok/s |
+| `mb_e4b_512_bf16.pt` | **device-prefill model** @ 512/128 — one serialized `NxDModel` (prefill+decode buckets, bf16 sharded weights + aliased KV), load with `torch.jit.load` |
+| `tp_mb.py` | compiles + saves the device-prefill model via NxD `ModelBuilder` (`MB_WDTYPE=bf16 MB_SAVE=... python tp_mb.py`) |
+| `optb_server_mb.py` | device-prefill HTTP server (OpenAI routes + `/generate`); loads `mb_e4b_512_bf16.pt`, host embeddings only |
+| `Dockerfile.mb` | packages the device-prefill build → `xbill9/gemma4-optb-e4b:tp2-devprefill-512` |
 
 The neffs embed the base weights in bf16, so they are Apache-2.0 derivatives of
 `google/gemma-4-E4B-it` — see **License** below.
@@ -135,9 +167,9 @@ token-for-token, e.g. *"The capital of France is **Paris**."*
 ## Limitations
 
 - **`inf2.8xlarge` only** — needs 2 NeuronCores (TP=2). Does not run on `inf2.xlarge`.
-- **Prefill runs on the host CPU** (a one-time seed per request). Fine for validation and
-  low-QPS use; a low-latency endpoint should move prefill on-device via weight-sharing buckets
-  (prefill + decode as two shapes of one resident model) — future work.
+- Prefill: the `tp_alias` build seeds on the host CPU (~1.4–1.6 s first token). **The `tp_mb`
+  device-prefill build above removes this** (~0.16 s first token, prefill on-device via
+  weight-sharing buckets) and is the recommended path for a low-latency endpoint.
 - **Batch size 1**, single-stream greedy/sampled decode. No continuous batching / paged attention.
 - Context is fixed at compile time; longer needs a recompile (compile needs swap).
 - Compiled specifically for Inferentia2 + the Neuron SDK versions pinned above.
