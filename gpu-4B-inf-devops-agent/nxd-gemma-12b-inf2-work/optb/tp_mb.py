@@ -85,7 +85,10 @@ def build_module():
                 lyr.layer_scalar.copy_(lsv[i].to(lyr.layer_scalar.dtype))
     lang.embed_tokens=torch.nn.Embedding(2, lang.config.hidden_size)   # dummy: embeddings computed on host, not on device
     NK=len(NONSHARED); W={i:_kv_rank_width(LINFO[i][0]) for i in NONSHARED}
-    def _sc(lg): return softcap*torch.tanh(lg/softcap) if softcap else lg
+    # NOTE: softcap is deliberately NOT applied on-device. tanh(logits/softcap) over the 262144 vocab
+    # in fp32 is a custom-call that overflows SBUF at 12B's hidden size (524288 > 196608 B/partition).
+    # softcap is monotonic, so argmax(softcap(x)) == argmax(x) — greedy is unaffected. Return RAW
+    # logits; the server applies softcap host-side only when sampling (temperature>0).
     class ScatterKV:
         is_compileable=False
         def __init__(s,kb,vb,oh): s.key={i:kb[j] for j,i in enumerate(NONSHARED)}; s.val={i:vb[j] for j,i in enumerate(NONSHARED)}; s.oh=oh
@@ -103,7 +106,7 @@ def build_module():
             cache=ScatterKV(list(s.kbuf),list(s.vbuf),onehot)
             out=s.lang(inputs_embeds=ie,position_ids=position_ids,
                        attention_mask={"full_attention":full_mask,"sliding_attention":slide_mask},use_cache=True,past_key_values=cache)
-            lg=_sc(s.head(out.last_hidden_state)); ks,vs=cache.export(); return (lg,)+tuple(ks)+tuple(vs)
+            lg=s.head(out.last_hidden_state); ks,vs=cache.export(); return (lg,)+tuple(ks)+tuple(vs)  # RAW logits (no softcap; monotonic → argmax unchanged)
     w=Wrap().eval()
     aliases={}
     for j in range(NK): aliases[w.kbuf[j]]=1+j
