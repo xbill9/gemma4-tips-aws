@@ -91,16 +91,18 @@ def _watch_spot():
         time.sleep(5)
 
 def boot():
-    global torch, tok, lang, SW, EOS, dec, NEG
+    global torch, tok, lang, SW, EOS, dec, NEG, SOFTCAP
     import torch
     import torch_neuronx  # registers torch.classes.neuron ops needed to deserialize the neffs
     from transformers import AutoTokenizer, Gemma4UnifiedForConditionalGeneration
     NEG=torch.finfo(torch.float32).min
     torch.set_num_threads(int(os.environ.get("HOST_THREADS", os.cpu_count() or 16)))   # host embeddings only
     tok=AutoTokenizer.from_pretrained(MP)
-    # host model provides ONLY the scaled word embedding (gemma4_unified has no PLE); transformer+head+softcap on device
+    # host model provides ONLY the scaled word embedding (gemma4_unified has no PLE); transformer+head on device.
+    # softcap is applied HOST-SIDE in pick() for sampling (device returns raw logits; greedy is softcap-invariant).
     mm=Gemma4UnifiedForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
+    SOFTCAP=getattr(mm.config.text_config,"final_logit_softcapping",None)
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
     t=time.time(); dec=torch.jit.load(MB_PATH)   # weight-sharing prefill+decode buckets (device-resident, aliased KV)
     dec.nxd_model.initialize_with_saved_weights(torch.tensor(int(os.environ.get("START_RANK","0"))))  # load saved sharded weights onto cores
@@ -123,8 +125,10 @@ def _inputs(ids, positions):
 LAST_PREFILL_S=0.0
 
 def pick(logits, temperature, top_k, top_p):
-    if temperature is None or temperature<=0.0: return int(torch.argmax(logits))
-    logits=logits.float()/float(temperature)
+    if temperature is None or temperature<=0.0: return int(torch.argmax(logits))  # greedy: softcap monotonic → argmax unchanged
+    logits=logits.float()
+    if SOFTCAP: logits=SOFTCAP*torch.tanh(logits/SOFTCAP)   # softcap host-side (device returns RAW logits) — matters for sampling
+    logits=logits/float(temperature)
     if top_k and top_k>0:
         k=min(int(top_k),logits.numel()); kth=torch.topk(logits,k).values[-1]
         logits=torch.where(logits<kth,torch.full_like(logits,NEG_INF),logits)
