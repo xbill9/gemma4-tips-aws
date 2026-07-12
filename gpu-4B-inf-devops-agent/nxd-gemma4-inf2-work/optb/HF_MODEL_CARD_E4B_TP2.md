@@ -65,6 +65,19 @@ Serves OpenAI-compatible routes (`/v1/chat/completions`, `/v1/completions`) plus
 `/health`, `/metrics`. To build it yourself: `MB_WDTYPE=bf16 KV_MAX=512 KV_BUCKET=128 MB_SAVE=mb_e4b_512_bf16.pt python tp_mb.py`
 (compiles + saves the model), then serve with `optb_server_mb.py` / package with `Dockerfile.mb`.
 
+**Run on a single `inf2.xlarge` (¼ the price) — slim image.** The `inf2.xlarge` has the *same 2
+NeuronCores* as the `inf2.8xlarge`, just 16 GB host RAM instead of 128. The **slim** server
+(`optb_server_slim.py`) fits that by loading the host embedding model in bf16 and dropping the
+transformer layers (they run on-device), so the host footprint is a few GB:
+
+```bash
+docker run -d --device /dev/neuron0 --ipc=host -p 8080:8080 \
+  xbill9/gemma4-optb-e4b:slim-devprefill
+```
+
+Validated on an `inf2.xlarge`: coherent output, device prefill ~0.11 s, ~36 tok/s, ~8 GB host RAM.
+(Compile still needs an `inf2.8xlarge`; the slim image reuses the same compiled model.)
+
 > The one non-obvious fix that made device prefill correct: Gemma-4's per-layer `layer_scalar`
 > is a **buffer**, and NxD's `ModelBuilder` weight-sharding loads *parameters* only — so it must be
 > copied from the checkpoint by hand, else every layer over-scales ~16× into garbage.
