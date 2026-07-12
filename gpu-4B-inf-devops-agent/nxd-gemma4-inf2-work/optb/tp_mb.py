@@ -49,8 +49,9 @@ def build_module():
         def forward(s,x): return 0.5*x*(1.0+torch.tanh(0.7978845608028654*(x+0.044715*x*x*x)))
     for mod in lang.modules():
         if hasattr(mod,"act_fn"): mod.act_fn=GeluTanh()
-    def col(o): return ColumnParallelLinear(o.in_features,o.out_features,bias=False,gather_output=False)
-    def row(o): return RowParallelLinear(o.in_features,o.out_features,bias=False,input_is_parallel=True)
+    WDT=torch.bfloat16 if os.environ.get("MB_WDTYPE","fp32")=="bf16" else torch.float32  # bf16 halves on-device weights
+    def col(o): return ColumnParallelLinear(o.in_features,o.out_features,bias=False,gather_output=False,dtype=WDT)
+    def row(o): return RowParallelLinear(o.in_features,o.out_features,bias=False,input_is_parallel=True,dtype=WDT)
     for lyr in lang.layers[:lang.config.num_hidden_layers]:
         a=lyr.self_attn; hd=a.head_dim
         a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj)
