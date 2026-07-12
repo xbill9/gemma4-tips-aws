@@ -1,7 +1,7 @@
-"""Path B: TP=2 prefill+decode via NxD ModelBuilder — ONE weight set shared across both buckets
-(sharded once from a checkpoint_loader, so fp32 fits ~8GB/rank AND stays correct). Reuses the
-Path-A unified forward + one-hot-scatter KV write. module_cls builds parallel-layer STRUCTURE only
-(no weight copy); ModelBuilder's get_sharded_checkpoint fills + shares the weights."""
+"""Gemma-4 12B (gemma4_unified) TP=2 prefill+decode via NxD ModelBuilder — ONE bf16 weight set
+shared across both buckets + on-device aliased KV. Adapted from the E4B tp_mb.py: same recipe
+(layer_scalar buffer load, aliased KV, device prefill, tied head) minus the Per-Layer-Embeddings
+path (gemma4_unified has none). Set MODEL_DIR + MB_WDTYPE=bf16 (bf16 mandatory to fit ~12GB/rank)."""
 import sys, os, types, time
 m=types.ModuleType("transformers.utils.fx"); m.HFTracer=object; m.symbolic_trace=None; sys.modules["transformers.utils.fx"]=m
 import multiprocessing
@@ -14,8 +14,8 @@ def _kv_rank_width(nkv): return nkv//TP if nkv%TP==0 else nkv
 def _discover():
     """Load ref model on host once to get NONSHARED/LINFO/softcap/SW (structure metadata)."""
     import torch
-    from transformers import Gemma4ForConditionalGeneration
-    mm=Gemma4ForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
+    from transformers import Gemma4UnifiedForConditionalGeneration
+    mm=Gemma4UnifiedForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config
     NONSHARED,LINFO=[],{}
     for i,lyr in enumerate(lang.layers[:cfg.num_hidden_layers]):
@@ -28,9 +28,9 @@ def _discover():
 def _structure():
     """Build model STRUCTURE from config only (no weight load) — safe under ModelBuilder meta context."""
     import torch
-    from transformers import Gemma4ForConditionalGeneration, AutoConfig
+    from transformers import Gemma4UnifiedForConditionalGeneration, AutoConfig
     cfg=AutoConfig.from_pretrained(MP)
-    mm=Gemma4ForConditionalGeneration(cfg); mm.eval()
+    mm=Gemma4UnifiedForConditionalGeneration(cfg); mm.eval()
     lang=mm.model.language_model; lc=lang.config
     NONSHARED,LINFO=[],{}
     for i,lyr in enumerate(lang.layers[:lc.num_hidden_layers]):
@@ -63,11 +63,10 @@ def build_module():
             else:
                 a.num_key_value_groups=(a.q_proj.out_features//hd)//nkv
         mp=lyr.mlp; mp.gate_proj=col(mp.gate_proj); mp.up_proj=col(mp.up_proj); mp.down_proj=row(mp.down_proj)
-    # CRITICAL: load per-layer `layer_scalar` BUFFERS from the checkpoint. These multiply each layer's
-    # output (modeling_gemma4 L1461 `hidden_states *= self.layer_scalar`); real value ~0.061 but config
-    # default is 1.0, and shard_children/get_sharded_checkpoint load PARAMS only (never buffers) — so
-    # without this every layer over-scales ~16x → compounds over 42 layers → cos~0 garbage. (This is
-    # the difference vs tp_alias, which built via from_pretrained and got buffers loaded for free.)
+    # CRITICAL: load per-layer `layer_scalar` BUFFERS from the checkpoint. Each layer does
+    # `hidden_states *= self.layer_scalar` (modeling_gemma4_unified L543); real value is <1 but the
+    # config default is 1.0, and shard_children/get_sharded_checkpoint load PARAMS only (never buffers)
+    # — so without this every layer over-scales → compounds over all 48 layers → cos~0 garbage.
     import glob
     from safetensors import safe_open
     lsv={}
@@ -96,9 +95,9 @@ def build_module():
             super().__init__(); s.lang=lang; s.head=lm_head
             s.kbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,W[i],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
             s.vbuf=torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1,W[i],MAX,LINFO[i][1]),requires_grad=False) for i in NONSHARED])
-        def forward(s, ie, ple, position_ids, onehot, full_mask, slide_mask):
+        def forward(s, ie, position_ids, onehot, full_mask, slide_mask):
             cache=ScatterKV(list(s.kbuf),list(s.vbuf),onehot)
-            out=s.lang(inputs_embeds=ie,per_layer_inputs=ple,position_ids=position_ids,
+            out=s.lang(inputs_embeds=ie,position_ids=position_ids,
                        attention_mask={"full_attention":full_mask,"sliding_attention":slide_mask},use_cache=True,past_key_values=cache)
             lg=_sc(s.head(out.last_hidden_state)); ks,vs=cache.export(); return (lg,)+tuple(ks)+tuple(vs)
     w=Wrap().eval()
@@ -128,13 +127,13 @@ def checkpoint_loader():
 def _inputs(lang, ids, SW, NEG, positions):
     import torch
     ids_t=torch.tensor([ids])
-    with torch.no_grad(): ie=lang.embed_tokens(ids_t); ple=lang.get_per_layer_inputs(ids_t,ie)
+    with torch.no_grad(): ie=lang.embed_tokens(ids_t)   # scaled word-embedding on host; gemma4_unified has NO PLE
     seq=len(positions); ar=torch.arange(MAX); pos=torch.tensor([positions],dtype=torch.long)
     oh=(ar.view(MAX,1)==pos.view(1,seq)).view(1,1,MAX,seq).to(torch.float32)
     q=pos.view(seq,1); mm2=ar.view(1,MAX)
     full=torch.where(mm2<=q,0.0,NEG).view(1,1,seq,MAX)
     slide=torch.where((mm2<=q)&(mm2>q-SW),0.0,NEG).view(1,1,seq,MAX)
-    return ie,ple,pos,oh,full,slide
+    return ie,pos,oh,full,slide
 
 def main():
     import torch
@@ -173,12 +172,12 @@ def main():
     def _sc2(lg): return softcap*torch.tanh(lg/softcap) if softcap else lg
     def embR(ids):
         idt=torch.tensor([ids])
-        with torch.no_grad(): ie=rlang.embed_tokens(idt); ple=rlang.get_per_layer_inputs(idt,ie)
-        return ie,ple
+        with torch.no_grad(): ie=rlang.embed_tokens(idt)
+        return ie
     def cpuref():
-        ie,ple=embR(prompt); c=DynamicCache()
+        ie=embR(prompt); c=DynamicCache()
         with torch.no_grad():
-            out=rlang(inputs_embeds=ie,per_layer_inputs=ple,attention_mask=torch.ones(1,n0,dtype=torch.long),use_cache=True,past_key_values=c)
+            out=rlang(inputs_embeds=ie,attention_mask=torch.ones(1,n0,dtype=torch.long),use_cache=True,past_key_values=c)
             first=int(_sc2(head(out.last_hidden_state))[0,n0-1].argmax())
         KS=[c.layers[i].keys for i in NONSHARED]; VS=[c.layers[i].values for i in NONSHARED]
         class SKV:
@@ -195,9 +194,9 @@ def main():
         seq=[first]; cur=n0
         for _ in range(30):
             if seq[-1] in EOS: break
-            e1,p1=embR([seq[-1]]); pi,oh,fm,sm=hp(cur); cache=SKV(kb,vb,oh)
+            e1=embR([seq[-1]]); pi,oh,fm,sm=hp(cur); cache=SKV(kb,vb,oh)
             with torch.no_grad():
-                out=rlang(inputs_embeds=e1,per_layer_inputs=p1,position_ids=pi,attention_mask={"full_attention":fm,"sliding_attention":sm},use_cache=True,past_key_values=cache)
+                out=rlang(inputs_embeds=e1,position_ids=pi,attention_mask={"full_attention":fm,"sliding_attention":sm},use_cache=True,past_key_values=cache)
                 lg=_sc2(head(out.last_hidden_state))
             kb=[cache.key[i] for i in NONSHARED]; vb=[cache.val[i] for i in NONSHARED]
             seq.append(int(lg[0,0].argmax())); cur+=1

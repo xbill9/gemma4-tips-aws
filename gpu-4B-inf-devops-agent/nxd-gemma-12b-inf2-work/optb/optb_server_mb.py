@@ -95,12 +95,12 @@ def boot():
     global torch, tok, lang, SW, EOS, dec, NEG
     import torch
     import torch_neuronx  # registers torch.classes.neuron ops needed to deserialize the neffs
-    from transformers import AutoTokenizer, Gemma4ForConditionalGeneration
+    from transformers import AutoTokenizer, Gemma4UnifiedForConditionalGeneration
     NEG=torch.finfo(torch.float32).min
     torch.set_num_threads(int(os.environ.get("HOST_THREADS", os.cpu_count() or 16)))   # host embeddings only
     tok=AutoTokenizer.from_pretrained(MP)
-    # host model provides ONLY embeddings (embed_tokens + get_per_layer_inputs); transformer+head+softcap on device
-    mm=Gemma4ForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
+    # host model provides ONLY the scaled word embedding (gemma4_unified has no PLE); transformer+head+softcap on device
+    mm=Gemma4UnifiedForConditionalGeneration.from_pretrained(MP,torch_dtype=torch.float32,attn_implementation="eager"); mm.eval()
     lang=mm.model.language_model; cfg=lang.config; SW=cfg.sliding_window
     ec=mm.generation_config.eos_token_id; EOS=set(ec) if isinstance(ec,(list,tuple)) else {ec}
     t=time.time(); dec=torch.jit.load(MB_PATH)   # weight-sharing prefill+decode buckets (device-resident, aliased KV)
@@ -111,16 +111,16 @@ def boot():
     print(f"READY in {round(time.time()-t,1)}s (load+warmup) — TP2 device-prefill, MAX={MAX} BUCKET={BUCKET}",flush=True); READY.set()
 
 def _inputs(ids, positions):
-    """Host: embeddings (embed_tokens + per_layer_inputs) + onehot KV-write map + [seq x MAX] causal masks.
+    """Host: scaled word embedding + onehot KV-write map + [seq x MAX] causal masks (no PLE in gemma4_unified).
     positions=range(BUCKET) for prefill (ids=prompt padded to BUCKET); [cur] for a decode step (ids=[last_tok])."""
     ids_t=torch.tensor([ids])
-    with torch.no_grad(): ie=lang.embed_tokens(ids_t); ple=lang.get_per_layer_inputs(ids_t,ie)
+    with torch.no_grad(): ie=lang.embed_tokens(ids_t)
     seq=len(positions); ar=torch.arange(MAX); pos=torch.tensor([positions],dtype=torch.long)
     oh=(ar.view(MAX,1)==pos.view(1,seq)).view(1,1,MAX,seq).to(torch.float32)
     q=pos.view(seq,1); m2=ar.view(1,MAX)
     full=torch.where(m2<=q,0.0,NEG).view(1,1,seq,MAX)
     slide=torch.where((m2<=q)&(m2>q-SW),0.0,NEG).view(1,1,seq,MAX)
-    return ie,ple,pos,oh,full,slide
+    return ie,pos,oh,full,slide
 LAST_PREFILL_S=0.0
 
 def pick(logits, temperature, top_k, top_p):
