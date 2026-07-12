@@ -77,7 +77,9 @@ specific to the 12B and were required for correctness / to compile:
 | `mb_12b_256.pt` | the device-prefill model — one serialized `NxDModel` (prefill+decode buckets, bf16 sharded weights + aliased KV), load with `torch.jit.load` |
 | `tp_mb.py` | compiles + saves the model via NxD `ModelBuilder` (`MB_WDTYPE=bf16 MB_SAVE=... python tp_mb.py`) |
 | `optb_server_mb.py` | device-prefill HTTP server (OpenAI routes + `/generate`); host computes only the scaled word embedding |
-| `Dockerfile.mb` | packages the build → `xbill9/gemma4-optb-12b:tp2-devprefill-256` |
+| `optb_server_slim.py` | **slim** server for `inf2.xlarge` (16 GB RAM) — loads only `embed_tokens.weight`, never the full transformer host-side |
+| `Dockerfile.mb` | packages the full build → `xbill9/gemma4-optb-12b:tp2-devprefill-256` |
+| `Dockerfile.12b-slim` | packages the slim build → `xbill9/gemma4-optb-12b:slim-devprefill` (`inf2.xlarge`) |
 
 ## Run
 
@@ -91,6 +93,21 @@ curl -s localhost:8080/generate -d '{"prompt":"What is AWS Inferentia?","max_tok
 
 Serves OpenAI-compatible routes (`/v1/chat/completions`, `/v1/completions`) plus `/generate`,
 `/health`, `/metrics`.
+
+**Run on a single `inf2.xlarge` (¼ the price) — slim image.** The `inf2.xlarge` has the *same 2
+NeuronCores* as the `inf2.8xlarge`, just 16 GB host RAM instead of 128. `gemma4_unified` has no
+Per-Layer Embeddings, so the host only needs the scaled word embedding — the **slim** server
+(`optb_server_slim.py`) constructs the real `Gemma4UnifiedTextScaledWordEmbedding` and loads *only*
+`embed_tokens.weight` from safetensors, instead of materializing the ~24 GB transformer on the host:
+
+```bash
+docker run -d --device /dev/neuron0 --ipc=host -p 8080:8080 \
+  xbill9/gemma4-optb-12b:slim-devprefill
+```
+
+Validated on an `inf2.xlarge`: coherent output ("The capital of France is **Paris**."), device
+prefill ~0.1 s, ~15 tok/s decode, **~8 GB host RAM** (the same compiled `mb_12b_256.pt` runs on both
+cores). Add swap before first run — the neff load peaks host RAM on a 16 GB box.
 
 **From these files** (on an `inf2.8xlarge` with the Neuron runtime, `transformers==5.13.0`,
 `torch-neuronx==2.8.0`, `neuronx-distributed>=0.17`):
@@ -107,7 +124,7 @@ MODEL_DIR=./gemma-4-12B-it MB_PATH=./mb_12b_256.pt KV_MAX=256 KV_BUCKET=64 \
 
 ## Limitations
 
-- **`inf2.8xlarge` only** — needs 2 NeuronCores (TP=2). bf16 is mandatory (fp32 = 24 GB/core, won't load).
+- **2 NeuronCores (TP=2) required** — runs on `inf2.8xlarge` (full server) or `inf2.xlarge` (slim server, `:slim-devprefill`); bf16 is mandatory (fp32 = 24 GB/core, won't load).
 - **256-token context.** 12B leaves ~4 GB/core after weights, so the window is smaller than the E2B/E4B builds; a larger window needs a recompile and may not fit.
 - **Text generation only** in this build — the audio/vision projection paths are not wired to the device model.
 - **Batch size 1**, single-stream greedy/sampled decode.
