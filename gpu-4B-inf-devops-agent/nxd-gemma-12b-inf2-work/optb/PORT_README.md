@@ -21,20 +21,35 @@ Target: **TP=2 on a single `inf2.8xlarge`** (both cores, 2×16 GB HBM).
 - **bf16 sharded weights** (`MB_WDTYPE=bf16`) — correct + fast; halves on-device weights.
 - `torch.jit.save`/`load` of the executor + `initialize_with_saved_weights(start_rank)`.
 
-## OPEN QUESTIONS — need the target checkpoint to resolve
-1. **Which 12B, and is it Gemma-3n-style or a plain transformer?**
-   `tp_mb.py`'s forward passes `inputs_embeds` **and** `per_layer_inputs` (`lang.get_per_layer_inputs`)
-   — that Per-Layer-Embeddings (PLE) machinery is **3n-specific**. A standard Gemma-3 12B has **no PLE**,
-   so the embed/forward path (`_inputs`, `embR`, dummy `embed_tokens`) must be simplified. This is the
-   biggest branch point.
-2. **Fit at TP=2.** 12B bf16 ≈ 24 GB → ~12 GB/rank across 2 cores, leaving ~4 GB/rank for KV +
-   activations. Plausible but tight; may cap the context window (`KV_MAX`) smaller than E4B's 512,
-   or need int4/QAT weights to breathe. Verify with a small-context trace first.
-3. **GQA sharding.** Confirm `num_key_value_heads` vs `num_attention_heads` and `head_dim` for the 12B
-   config. With `nkv % TP == 0` the existing 1-head-per-rank sharding (`_kv_rank_width`) is correct;
-   otherwise KV replicates and `num_key_value_groups` needs re-deriving (already handled for the
-   nkv%TP!=0 case, but re-verify the head geometry).
+## TARGET RESOLVED: `google/gemma-4-12B-it` (`model_type: gemma4_unified_text`)
+The **encoder-free** Gemma 4 12B — projects raw audio (640 samples/40ms) + image patches (48×48)
+directly into the embedding space via linear layers, no audio/vision encoder. Config (from HF):
+
+| layers | hidden | nq | nkv | head_dim | global_head_dim | sliding_window | interm | vocab | softcap | tie_emb |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **48** | 3840 | 16 | 8 | 256 | 512 | 1024 | 15360 | 262144 | 30.0 | true |
+
+Also: `num_kv_shared_layers=0` (ALL layers own K/V), `attention_k_eq_v=true` (V=K everywhere),
+`hidden_size_per_layer_input=0` (**no PLE**).
+
+## Port deltas vs E4B (what to change in tp_mb.py)
+1. **No PLE** — drop `per_layer_inputs`/`get_per_layer_inputs` from `_inputs`/`embR`/`Wrap.forward`.
+   NOTE: different model class (`gemma4_unified_text`) — verify its `.forward` signature + the
+   `language_model` submodule path on the box (transformers 5.13 modeling_gemma4_unified*).
+2. **`attention_k_eq_v=true`** — V=K on ALL layers → shard only `k_proj`, reuse as V (E4B's
+   `v_proj is None` guard already does this for its global layers; here it's every layer).
+3. **`num_kv_shared_layers=0`** — `NONSHARED` = all 48 layers (the `is_kv_shared_layer` filter yields all).
+4. **GQA is clean at TP=2**: nkv=8 % 2 == 0 → 4 KV heads/rank, q=8/rank, keep `num_key_value_groups=2`.
+   `_kv_rank_width` works as-is; no nkv<TP edge.
+5. `layer_scalar` buffer fix, aliased KV, bf16 sharding, tied-head mapping, dual head-dim (256/512),
+   jit save/load — all UNCHANGED.
+
+## Risk: FIT, not correctness
+12B bf16 ≈ 24 GB → **~12 GB/rank** across 2 cores; ~4 GB/rank left for activations + KV on a 16 GB
+core. **bf16 is MANDATORY** (fp32 = 24 GB/rank, won't load). Expect `KV_MAX` to cap below E4B's 512 —
+start at 256/64, scale up until HBM says no.
 
 ## Next step
-Point `MODEL_DIR` at the staged 12B checkpoint, then:
-`KV_MAX=256 KV_BUCKET=64 MB_WDTYPE=bf16 python tp_mb.py`  → expect `SEQ_MATCH True`, then scale context.
+Stage `google/gemma-4-12B-it` (gated) at `$MODEL_DIR`, adapt `tp_mb.py` per the deltas above, then:
+`KV_MAX=256 KV_BUCKET=64 MB_WDTYPE=bf16 MB_SAVE=/workspace/mb_12b_256.pt python tp_mb.py`
+→ expect `SEQ_MATCH True`, then push context + wrap with `optb_server_mb.py`.
