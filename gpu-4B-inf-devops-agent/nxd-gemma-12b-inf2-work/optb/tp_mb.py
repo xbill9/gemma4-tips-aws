@@ -53,15 +53,19 @@ def build_module():
     def col(o): return ColumnParallelLinear(o.in_features,o.out_features,bias=False,gather_output=False,dtype=WDT)
     def row(o): return RowParallelLinear(o.in_features,o.out_features,bias=False,input_is_parallel=True,dtype=WDT)
     for lyr in lang.layers[:lang.config.num_hidden_layers]:
-        a=lyr.self_attn; hd=a.head_dim
+        a=lyr.self_attn; hd=a.head_dim; nq=a.q_proj.out_features//hd   # capture nq BEFORE replacing q_proj
         a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj)
         if getattr(a,"k_proj",None) is not None:
             nkv=a.k_proj.out_features//hd
             if nkv%TP==0:
+                # divisible (sliding layers, nkv=8): shard k/v to nkv/TP heads/rank, KEEP groups
                 a.k_proj=col(a.k_proj)
                 if getattr(a,"v_proj",None) is not None: a.v_proj=col(a.v_proj)
             else:
-                a.num_key_value_groups=(a.q_proj.out_features//hd)//nkv
+                # indivisible (global layers, num_global_key_value_heads=1): leave k/v REPLICATED
+                # (plain Linear -> loaded replicated on every rank), and shrink groups so repeat_kv
+                # matches the per-rank SHARDED q head count: groups = (nq/TP)/nkv.
+                a.num_key_value_groups=(nq//TP)//nkv
         mp=lyr.mlp; mp.gate_proj=col(mp.gate_proj); mp.up_proj=col(mp.up_proj); mp.down_proj=row(mp.down_proj)
     # CRITICAL: load per-layer `layer_scalar` BUFFERS from the checkpoint. Each layer does
     # `hidden_states *= self.layer_scalar` (modeling_gemma4_unified L543); real value is <1 but the
