@@ -345,7 +345,100 @@ host‑side embedding on the CPU.
 
 ---
 
-## 8. Artifacts
+## 8. Cross‑cutting findings
+
+The three obstacles above were the entry point. The port also produced a set of findings that
+generalize beyond Gemma‑4 and were, in aggregate, worth more than any single fix.
+
+### 8.1 "Garbage out" almost never means "the accelerator is broken"
+
+Every time this port produced garbage, the NeuronCore was **innocent**. The causes, in order of how
+often they bit: a broken/missing **tokenizer** (§7), a mis‑restored **weight reload** (§8.2), a wrong
+**buffer** (`layer_scalar`, §4.6), and a mismatched **driver/SDK** version (a precompiled neff can
+*mis‑execute into garbage rather than error* on the wrong runtime). All four are **cheaper to rule out
+than a device bug**, and all four *look* like a precision/hardware failure.
+
+The fastest oracle turned out to be a **CPU‑reference run on the same box**: load the model in bf16
+with `from_pretrained` (≈5 s off the page cache once the weights are downloaded) and run one forward.
+If the CPU reference produces the *same* garbage as the device, the accelerator is exonerated and the
+bug is upstream (tokenizer, input, weights). This single technique collapsed a multi‑hour "device
+bug" into a two‑minute tokenizer fix. **Reach for the CPU oracle before profiling the neff.**
+
+### 8.2 Validate the *serving path*, not the *trace*
+
+The most dangerous illusion in the whole project was a green `SEQ_MATCH`. Correctness was validated
+**in‑process** on the freshly traced model (`ModelBuilder.trace(initialize_model_weights=True)`) — but
+the server loads a **saved** model in a **fresh process** and calls
+`initialize_with_saved_weights()`. Those are different code paths, and the in‑process pass never
+exercised the one the server actually uses. (`torch.jit.load` *without* the init call fails outright —
+"This model is not initialized" — so the init step is load‑bearing, not cosmetic.)
+
+Combined with the auto‑port's **false "100% PASS"** against a PLE‑stripped golden (§3), the lesson is
+blunt: **a passing test against the wrong oracle, or on the wrong execution path, is worse than a
+failing one.** Validate (a) the exact artifact you will ship, (b) in the exact way you will load it,
+(c) against an **independent** float reference — not the trace, not a golden derived from the same
+broken assumption.
+
+### 8.3 "Effective params" is a capacity lie, and bf16 doesn't rescue the core
+
+E2B is marketed as "2B" and E4B as "4B" — the MatFormer/PLE *effective* parameter counts. But the
+**device footprint is the full parameter count** (~5B and ~8B), and that is what has to fit 16 GB. This
+is exactly why E4B, the "4B" model, does **not** fit one core while E2B, the "2B" model, does.
+**Plan capacity from real parameters, never the effective headline.**
+
+The second half of the trap: **bf16 halves the on‑disk neff but not the on‑device constant count.**
+The intuition "just use lower precision to fit" is wrong here — E4B's ~15.4 GB of resident fp32
+constants stay ~15.4 GB of *slots* regardless of dtype tricks at the boundaries, and a second neff
+still tips past 16 GB. **Tensor parallelism, not precision, is the lever that actually fits the model
+on the core** (§4.4).
+
+### 8.4 KV‑sharing is also a *gift*, not only an obstacle
+
+The same cross‑layer KV‑sharing that NxD can't represent (§2.1, §3) is what makes E2B fit one core in
+the first place. Only the **15 non‑shared layers allocate a KV buffer**; the rest read through. The
+device‑resident cache is therefore far smaller than a naïve one‑buffer‑per‑layer implementation, which
+is a large part of why the memory budget closes. An architectural feature that breaks the vendor
+abstraction can still be a **net win** once you stop fighting it.
+
+### 8.5 Exploit numerical invariances to fit SBUF
+
+Two of the compiler wins came from *math*, not from the compiler:
+
+- **Monotonic ⇒ argmax‑invariant.** Logit soft‑capping is monotonic, so it cannot change
+  `argmax` — greedy decode is identical whether or not it runs. Moving it host‑side (only needed for
+  sampling) freed the SBUF it was overflowing (§4.2). Generalize: **any monotonic, per‑element output
+  transform can leave the device graph for greedy decode.**
+- **Parameters vs buffers.** Frameworks that "load the checkpoint" often mean *parameters*, silently
+  skipping **buffers** like `layer_scalar` (§4.6). When a model multiplies by a learned scalar that
+  lives in a buffer, that scalar will be wrong after any param‑only load — a bug with no error message,
+  only degraded output.
+
+### 8.6 The cheap box is the *same accelerator*
+
+`inf2.xlarge` and `inf2.8xlarge` carry the **identical 2‑NeuronCore / 32 GB‑HBM accelerator**; they
+differ only in **host** vCPU (4 vs 32) and RAM (16 vs 128 GB). Since Gemma‑4's transformer runs
+entirely on the cores, the only thing standing between the ~4× cheaper box and full performance is
+**host memory** — solved by "slim" servers that keep just the embedding table on the CPU and drop the
+transformer layers (they live in the neff). Result: **all three models serve on a single
+`inf2.xlarge`**, and because throughput barely drops, the cheap box is **cheaper per token**, not just
+per hour. (The one non‑obvious requirement is swap: the neff *load* briefly peaks ~14.5 GB on a 16 GB
+host — §7.)
+
+### 8.7 Prefill is a workload decision, not a fixed design
+
+Two prefill strategies coexist and trade off cleanly, so the "right" one depends on the workload:
+
+| | host‑seed (`tp_alias`) | device‑prefill (`ModelBuilder`) |
+|---|---|---|
+| First token | ~1.4–1.6 s (CPU prefill) | **~0.1–0.16 s** |
+| Decode | up to ~60 tok/s (E4B slim) | ~36–39 tok/s (E4B) |
+| Best for | long generations | chat / first‑token‑bound |
+
+Because the KV cache is **device‑resident** in both, per‑token latency is essentially **flat across
+context length** — there is no host round‑trip that grows with the sequence. The knob to turn is
+first‑token latency vs sustained decode, chosen per use case, not per model.
+
+## 9. Artifacts
 
 **Hugging Face** (recipe + compiled neffs + Dockerfiles + model cards):
 - `xbill9/gemma-4-E2B-it-inferentia2`
@@ -365,7 +458,7 @@ device‑prefill HTTP servers with OpenAI routes). Fix history: `e785f6d` (layer
 
 ---
 
-## 9. Limitations & future work
+## 10. Limitations & future work
 
 - **Batch size 1**, single‑stream greedy/sampled decode. No continuous batching / paged attention —
   the largest gap between "works" and "serves production traffic."
