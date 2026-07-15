@@ -48,22 +48,25 @@ def _shard(lang, nlayers):
     from neuronx_distributed.parallel_layers.parallel_state import get_tensor_model_parallel_rank
     rank = get_tensor_model_parallel_rank()
     def col(o):
-        out,inf=o.weight.shape; l=ColumnParallelLinear(inf,out,bias=False,gather_output=False); c=out//TP
+        out,inf=o.weight.shape; l=ColumnParallelLinear(inf,out,bias=False,gather_output=False,dtype=o.weight.dtype); c=out//TP
         l.weight.data.copy_(o.weight.data[rank*c:(rank+1)*c,:]); return l
     def row(o):
-        out,inf=o.weight.shape; l=RowParallelLinear(inf,out,bias=False,input_is_parallel=True); c=inf//TP
+        out,inf=o.weight.shape; l=RowParallelLinear(inf,out,bias=False,input_is_parallel=True,dtype=o.weight.dtype); c=inf//TP
         l.weight.data.copy_(o.weight.data[:,rank*c:(rank+1)*c]); return l
     for lyr in lang.layers[:nlayers]:
         a=lyr.self_attn; hd=a.head_dim
-        a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj)
-        # Correct GQA sharding: shard k/v to nkv//TP heads/rank when divisible, keep groups.
-        if getattr(a,"k_proj",None) is not None:
-            nkv=a.k_proj.out_features//hd
-            if nkv % TP == 0:
-                a.k_proj=col(a.k_proj)
-                if getattr(a,"v_proj",None) is not None: a.v_proj=col(a.v_proj)
-            else:
-                a.num_key_value_groups=(a.q_proj.out_features//hd)//nkv
+        k_out=a.k_proj.out_features if getattr(a,"k_proj",None) is not None else None
+        nkv=(k_out//hd) if k_out is not None else None
+        # Attention: shard q/k/v/o ONLY when kv heads divide TP (clean contiguous GQA sharding:
+        # rank r's q-head block maps to rank r's kv-head block, groups preserved).
+        # 31B global (full_attention) layers have 4 kv heads (< TP=8) and v_proj=None (k_eq_v) ->
+        # can't split; REPLICATE the whole attention (leave q/k/v/o full) and keep 4 kv heads on
+        # every rank. Contiguous q-sharding would misalign q-heads against the replicated KV.
+        if nkv is not None and nkv % TP == 0:
+            a.q_proj=col(a.q_proj); a.o_proj=row(a.o_proj); a.k_proj=col(a.k_proj)
+            if getattr(a,"v_proj",None) is not None: a.v_proj=col(a.v_proj)
+        # else: replicated attention (q/k/v/o unchanged); num_key_value_groups stays model default.
+        # MLP: always sharded.
         mp=lyr.mlp; mp.gate_proj=col(mp.gate_proj); mp.up_proj=col(mp.up_proj); mp.down_proj=row(mp.down_proj)
 
 def _shard_lmhead(lm_head):
@@ -76,7 +79,7 @@ def _shard_lmhead(lm_head):
     out,inf = lm_head.weight.shape           # [vocab, hidden]
     assert out % TP == 0, f"vocab {out} not divisible by TP {TP}"
     c = out // TP
-    l = ColumnParallelLinear(inf, out, bias=False, gather_output=True)
+    l = ColumnParallelLinear(inf, out, bias=False, gather_output=True, dtype=lm_head.weight.dtype)
     l.weight.data.copy_(lm_head.weight.data[rank*c:(rank+1)*c, :]); return l
 
 def _sc(softcap, lg):
@@ -119,7 +122,10 @@ def main():
     tok=AutoTokenizer.from_pretrained(MP)
     _mm, rlang, _h, _sc2, NONSHARED, LINFO, SW = _build_shared()
     hds=sorted({LINFO[i][1] for i in NONSHARED})
+    from collections import Counter
+    dist=Counter((LINFO[i][1], LINFO[i][0], "shard" if LINFO[i][0]%TP==0 else "replicate") for i in NONSHARED)
     print(f"31B: {len(NONSHARED)} non-shared layers, distinct head_dims={hds}, TP={TP}, SHARD_LMHEAD={SHARD_LMHEAD}",flush=True)
+    print(f"  (head_dim, nkv, mode) distribution: {dict(dist)}",flush=True)
     def embed_ids(idl):                       # NO PLE (31B)
         ids=torch.tensor([idl])
         with torch.no_grad(): ie=rlang.embed_tokens(ids)
@@ -129,8 +135,11 @@ def main():
     ie1=embed_ids([prompt[-1]])
     ar=torch.arange(MAX); oh=(ar==n0).view(1,1,MAX,1).to(torch.float32); valid=ar<=n0
     fm=torch.where(valid,0.0,NEG).view(1,1,1,MAX); sm=torch.where(valid&(ar>n0-SW),0.0,NEG).view(1,1,1,MAX); pid=torch.tensor([[n0]],dtype=torch.long)
-    print("tracing TP+alias DECODE (only) ...",flush=True)
-    dec=neuronx_distributed.trace.parallel_model_trace(get_dec,(ie1,pid,oh,fm,sm),tp_degree=TP,compiler_args=CARGS)
+    # max_parallel_compilations=1 serializes per-rank build+compile (rendezvous barrier) so peak
+    # host RAM is ~1-2 ranks, not TP=8 simultaneously — the documented OOM remedy for large models.
+    MPC=int(os.environ.get("MAX_PAR_COMPILE","1"))
+    print(f"tracing TP+alias DECODE (only), max_parallel_compilations={MPC} ...",flush=True)
+    dec=neuronx_distributed.trace.parallel_model_trace(get_dec,(ie1,pid,oh,fm,sm),tp_degree=TP,compiler_args=CARGS,max_parallel_compilations=MPC)
     parallel_model_save(dec,"/workspace/tpa_dec"); print("DECODE_SAVED",flush=True)
     print("TPA_TRACE_OK",flush=True)
 
