@@ -32,21 +32,52 @@ this is a research spike, NOT a port. Config saved as `config.reference.json`.
 - At TP=8: ~6.1 GB/core weights (+ unsharded lm_head 2.82 GB/core). Fits 16 GB/core.
 - Expert-parallel option: 128 experts / TP=8 = **16 experts/rank**.
 
-## ⚠️ The MoE gap (the crux — new capability)
+## ✅ Architecture DECODED (2026-07-16, live meta-device inspection of transformers 5.13)
 
-`tp_alias_trace.py` `_shard()` shards a **dense** MLP (`gate/up/down`). For 26B you must replace it
-with an expert-aware path:
+Every layer is a **dual-path FFN** (shared dense MLP running in parallel with a 128-expert MoE), NOT
+"MLP replaced by MoE". Layer children: `self_attn, mlp, router, experts` + FOUR feed-forward norms
+(`pre_feedforward_layernorm`, `post_feedforward_layernorm`, `_1`, `_2`, `pre_feedforward_layernorm_2`).
 
-1. **Router** (`gate`, 2816→128): replicate (tiny), compute top-8 + softmax weights per token.
-2. **128 experts**, each `gate/up/down` at `moe_intermediate_size=704`: shard across TP
-   (expert-parallel: 16 experts/rank) or tensor-parallel within expert.
-3. **Top-8 gather/scatter**: token→expert dispatch does NOT trace as a clean static graph on Neuron.
-   Start with **dense/all-experts compute** (run all 128 experts on every token, mask by router
-   weight — wasteful but static-shape and traceable) for first-light correctness, optimize later.
-4. Confirm whether every layer is MoE or interleaved with dense (`intermediate_size=2112` suggests a
-   possible shared/dense component — inspect the loaded module structure).
+**Decoder layer forward (all 30 layers, `enable_moe_block=True`):**
+```
+residual = h (post-attention)
+dense = post_feedforward_layernorm_1( mlp( pre_feedforward_layernorm(residual) ) )   # shared MLP, intermediate 2112
+_,w,idx = router(residual_flat)                                                       # top-8
+moe   = post_feedforward_layernorm_2( experts( pre_feedforward_layernorm_2(residual_flat), idx, w ) )
+h = post_feedforward_layernorm( dense + moe ) + residual
+h *= layer_scalar                                                                     # buffer, load manually (like 31B)
+```
+- **Router** `Gemma4TextRouter`: params `proj (128,2816)`, `scale (2816,)`, `per_expert_scale (128,)` (+ own RMSNorm).
+  Forward: `x=norm(x)*scale*√d; p=softmax(proj(x),fp32,dim=128); w,idx=topk(p,8); w/=w.sum; w*=per_expert_scale[idx]`.
+- **Experts** `Gemma4TextExperts`: FUSED `gate_up_proj (128,1408,2816)` + `down_proj (128,2816,704)`, GELUtanh.
+  HF forward is a SPARSE gather/scatter loop (`torch.where`, `index_add_`) → **will NOT trace statically**.
+- **Shared MLP** `Gemma4TextMLP`: standard `down(act(gate(x))*up(x))`, intermediate 2112.
+- Attention: 25 sliding (8 kv, head_dim 256) + 5 global (2 kv, head_dim 512, `attention_k_eq_v`) — SAME
+  shard/replicate class as the 31B port (sliding shard, global replicate; 8%8==0 shard, 2%8!=0 replicate).
 
-Neither NxD nor the optb stack has traced MoE before. `top_k_experts=8` gather/scatter is the risk.
+## ⚠️ The crux: expert weights (45.6 GB) MUST shard — can't replicate
+
+128 experts ≈ 45.6 GB bf16 (30 layers). Replicating on TP=8 = 45.6 GB/core ≫ 16 GB. Must shard
+expert-parallel (16 experts/rank) or tensor-parallel within expert (shard the 704) → ~5.7 GB/rank.
+ModelBuilder does NOT auto-shard 3D expert Parameters (only ColumnParallel/RowParallel Linears).
+
+## ➡️ Plan: NxD `modules.moe` (path B) — it has the exact primitives
+
+`neuronx_distributed.modules.moe` provides **`ExpertMLPs`** (sharded expert compute, tensor+expert
+parallel groups, blockwise matmul, `glu_mlp` for fused gate+up), **`RouterTopK`**, and — crucially —
+**`SharedExperts`** + a **`MoE`** wrapper (router + expert_mlps + shared_experts + rmsnorm) that models
+Gemma4's dual-path natively. Approach:
+1. Reuse the 31B ModelBuilder recipe wholesale (attention shard/replicate, ScatterKV, layer_scalar
+   buffers, chat-template prompt, device prefill/decode).
+2. Replace `Gemma4TextExperts` with NxD `ExpertMLPs` (map fused gate_up_proj/down_proj → its weight
+   layout; glu_mlp=True); keep Gemma4's dual-path layer forward + shared `mlp` (shard TP) + the 4 norms.
+3. Router: either NxD `RouterTopK` or keep Gemma4's router patched traceable (must replicate the extra
+   `scale`/`per_expert_scale` + renorm — RouterTopK may not model these exactly → correctness risk).
+4. First-light fallback if ExpertMLPs mapping fights: hand-rolled all-experts-dense + manual 3D-param
+   expert-parallel shard + all-reduce (static-shape, exact match, slow).
+
+Env: `aws_neuronx_venv_pytorch_2_8_nxd_inference` + `transformers==5.13.0` + fx shim +
+`PATH=$VENV/bin:/opt/aws/neuron/bin`. Weights banked: `s3://xbill-gemma4-31b-usw2/w26b/weights/` (51.6GB).
 
 ## Bring-up sequence
 
