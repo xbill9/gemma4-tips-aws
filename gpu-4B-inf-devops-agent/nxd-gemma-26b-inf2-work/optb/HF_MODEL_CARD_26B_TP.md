@@ -59,7 +59,7 @@ only the experts:
 
 | file | what |
 |---|---|
-| `mb_26b_256.pt` | Compiled TP=8 MoE model (~22 GB), KV 256/64, bf16 |
+| `mb_26b_256.pt` | Compiled TP=8 MoE model (~65 GB), KV 256/64, bf16 |
 | `real-gemma4-26B-A4B-it/` | Google's weights + tokenizer + `chat_template.jinja` |
 | `tp_mb_moe.py` | The full recipe (DenseExperts + SPMDRank scatter, ModelBuilder trace, `MB_LOAD`) |
 | `optb_server_tp.py` | HTTP server (OpenAI-compatible + `/generate`, `/metrics`, streaming) |
