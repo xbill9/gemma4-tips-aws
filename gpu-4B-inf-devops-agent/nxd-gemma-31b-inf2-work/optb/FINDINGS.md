@@ -26,7 +26,18 @@ MB_TRACED -> MB_SAVED -> TPMB_OK -> RUN_EXIT 0
   import error was just a missing PATH; the `transformers.utils.fx` shim in tp_mb.py handles tfm 5.13).
 - **✅ VALIDATED (2026-07-16)**: reloaded neffs via `MB_LOAD=mb_31b_256.pt` (+ `nxd_model.initialize_with_saved_weights(torch.tensor([0]))` — torch.jit.load alone doesn't push weights to cores). Device output **== CPU fp32 reference: SEQ_MATCH True**, device prefill ~115ms. With the correct prompt: **`DEV GEN: 'The capital of France is Paris.'`** The port is numerically and behaviorally correct.
 - **Prompt gotcha (cost 4 debug rounds)**: Gemma-4's chat tokens are **`<|turn>`=105 / `<turn|>`=106** (NOT `<start_of_turn>`), and the snapshot ships the chat template as a separate `chat_template.jinja` (18.7KB "Google Gemma 4 Canonical Chat Template", w/ thinking-token scaffold). A manual `<start_of_turn>...` string tokenizes the markers into literal chars → model emits `<start_of_turn>` garbage. Both CPU+device reproduced it identically (that's why SEQ_MATCH was True on garbage). Fix in tp_mb.py: fetch+set `chat_template.jinja` from HF (Secrets-Manager token) then `apply_chat_template`; hardcoded-id fallback `[2,105,2364,107,...,106,107,105,4368,107,100,45518,107,101]`. `apply_chat_template` returns a BatchEncoding (not a plain dict) → extract `["input_ids"]`.
-- **Remaining**: server wrap (`optb_server_tp.py` needs the same MB_LOAD + init + chat-template path) + build production 512/128 + publish.
+- **✅ SERVER + PUBLISHED (2026-07-16)**: `optb_server_tp.py` rewritten for ModelBuilder (MB_LOAD +
+  `initialize_with_saved_weights` + device prefill/decode via `tp_mb._inputs` + chat-template prompt),
+  validated live over HTTP: `curl /generate {"prompt":"What is the capital of France?"}` →
+  `"The capital of France is Paris."`, READY in ~69s. Server gotcha: **`import
+  neuronx_distributed.trace.model_builder` before `torch.jit.load`** or it raises "Unknown type name
+  '__torch__.torch.classes.neuron.SPMDModel'" (the import registers the custom TorchScript class).
+  Published: **Docker Hub `xbill9/gemma4-optb-31b`** (`:latest` + `:modelbuilder-256-64`, thin image,
+  pins `neuronx-distributed==0.17.26814`, pulls artifacts from HF at runtime) + **HF
+  `xbill9/gemma-4-31B-it-inferentia2`** (170.8GB: neffs + weights + bundled chat_template.jinja + recipe
+  + server + Dockerfile + card). chat_template.jinja now bundled in the weights dir (S3 + HF) so
+  AutoTokenizer auto-loads it — no runtime token needed.
+- **Remaining**: production 512/128 (and larger) bucket recompiles; throughput/batching characterization.
 
 Infra: spot inf2.24xlarge capacity was ZERO for 60+ min across all 3 regions; a continuous multi-region
 poller (`grab.sh`, capacity-optimized EC2 Fleet) eventually caught a us-west-2d window. Weights bucket
