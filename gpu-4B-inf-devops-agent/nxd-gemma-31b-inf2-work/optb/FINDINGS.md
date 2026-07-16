@@ -1,3 +1,40 @@
+# ✅ RESOLVED (2026-07-16): ModelBuilder compiles 31B on real hardware
+
+The FINDINGS-recommended path **works**. `tp_mb.py` (NxD ModelBuilder, single-rank compile + per-rank
+weight sharding) produced a complete TP=8 model on a live inf2.24xlarge (us-west-2d):
+
+```
+31B discover: 60 non-shared layers, head_dims=[256, 512], softcap=30.0
+build_module: 50 sharded-attn layers, 10 replicated-attn (global) layers, TP=8
+  loaded 60 layer_scalar buffers
+Sharding weights for ranks: 0...7  ->  Done Sharding weights in 172.6s
+Finished building model in 2365.3s (~39 min)
+MB_TRACED -> MB_SAVED -> TPMB_OK -> RUN_EXIT 0
+```
+
+- **Neffs banked**: `mb_31b_256.pt` (108 GB, TP=8, KV 256/64, bf16) in `s3://xbill-gemma4-31b-usw2/neffs/`.
+- **Peak host memory 182 GB** (fp32 checkpoint + fp32 discover model), well under 369 GB — no OOM.
+  ModelBuilder compiles ONE rank then shards weights per-rank; none of the non-SPMD 300 GB blow-up.
+- **Compile takes ~39 min** — this is why spot windows <15 min kept dying mid-compile. Solution that
+  worked: race scarce spot with S3 checkpointing; the weights (62.5 GB) went to S3 once (durable) and
+  the compile finally landed in a ~43-min window. `tp_mb.py` now saves neffs immediately post-trace
+  (`SKIP_VALIDATE=1` compile-only) and supports `MB_LOAD=` to reload neffs for validation in a short window.
+- **Two fixes vs the first live run**: (1) build the Gemma chat prompt manually — the HF snapshot ships
+  the chat template as a separate `chat_template.jinja` not embedded in tokenizer_config, so
+  `apply_chat_template()` raised; (2) env = `aws_neuronx_venv_pytorch_2_8_nxd_inference` + `pip install
+  transformers==5.13.0` + `export PATH=$VENV/bin:/opt/aws/neuron/bin` (the `libneuronpjrt-path`
+  import error was just a missing PATH; the `transformers.utils.fx` shim in tp_mb.py handles tfm 5.13).
+- **✅ VALIDATED (2026-07-16)**: reloaded neffs via `MB_LOAD=mb_31b_256.pt` (+ `nxd_model.initialize_with_saved_weights(torch.tensor([0]))` — torch.jit.load alone doesn't push weights to cores). Device output **== CPU fp32 reference: SEQ_MATCH True**, device prefill ~115ms. With the correct prompt: **`DEV GEN: 'The capital of France is Paris.'`** The port is numerically and behaviorally correct.
+- **Prompt gotcha (cost 4 debug rounds)**: Gemma-4's chat tokens are **`<|turn>`=105 / `<turn|>`=106** (NOT `<start_of_turn>`), and the snapshot ships the chat template as a separate `chat_template.jinja` (18.7KB "Google Gemma 4 Canonical Chat Template", w/ thinking-token scaffold). A manual `<start_of_turn>...` string tokenizes the markers into literal chars → model emits `<start_of_turn>` garbage. Both CPU+device reproduced it identically (that's why SEQ_MATCH was True on garbage). Fix in tp_mb.py: fetch+set `chat_template.jinja` from HF (Secrets-Manager token) then `apply_chat_template`; hardcoded-id fallback `[2,105,2364,107,...,106,107,105,4368,107,100,45518,107,101]`. `apply_chat_template` returns a BatchEncoding (not a plain dict) → extract `["input_ids"]`.
+- **Remaining**: server wrap (`optb_server_tp.py` needs the same MB_LOAD + init + chat-template path) + build production 512/128 + publish.
+
+Infra: spot inf2.24xlarge capacity was ZERO for 60+ min across all 3 regions; a continuous multi-region
+poller (`grab.sh`, capacity-optimized EC2 Fleet) eventually caught a us-west-2d window. Weights bucket
+`xbill-gemma4-31b-usw2` (us-west-2, same region as capacity → fast pulls). HF token read from Secrets
+Manager via scoped inline policy on `aws-elasticbeanstalk-ec2-role`.
+
+---
+
 # Gemma-4 31B Inferentia port — findings (live-hardware run, 2026-07-15)
 
 Ran the scaffold on a real inf2.24xlarge spot box (us-west-2d, 12 Neuron cores, 369 GB host).
