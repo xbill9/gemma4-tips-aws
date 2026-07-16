@@ -1,3 +1,39 @@
+# ✅ SOLVED (2026-07-16): MoE runs on Inferentia — SEQ_MATCH True, "Paris"
+
+`tp_mb_moe.py` (NxD ModelBuilder, TP=8) validated on a live inf2.24xlarge:
+```
+build_module: 25 sharded-attn, 5 replicated-attn, 30 MoE layers, TP=8 (E=128 K=8 I=704)
+CPU GEN: 'The capital of France is **Paris**.'
+DEV GEN: 'The capital of France is **Paris**.'   SEQ_MATCH True   device prefill 77ms
+```
+Neff `mb_26b_256.pt` (21.9GB) in `s3://xbill-gemma4-31b-usw2/w26b/neffs/`. **All five Gemma-4 variants
+(E2B/E4B/12B/31B/26B-A4B) now run on Inferentia.**
+
+**How (path A, hand-rolled — cleaner than wrapping NxD's ExpertMLPs):** reuse the 31B ModelBuilder
+recipe wholesale (attention shard/replicate, ScatterKV, layer_scalar, chat-template, device
+prefill/decode) and swap ONLY `Gemma4TextExperts` → `DenseExperts`:
+- **all-experts-DENSE** compute (all 128 experts on every token, weighted by the top-8 router weight,
+  0 for non-selected → EXACT match to HF's sparse top-8; static-shape + traceable). The math + TP
+  sharding logic were unit-tested vs HF on CPU (MAXDIFF ~2e-6, cos 1.0) before any device run.
+- expert weights reshaped onto TWO standard parallel linears ModelBuilder auto-shards:
+  `gate_up [E*2I,H]` ColumnParallelLinear (rank r → experts 16r..16r+15) + `down [H,E*I]`
+  RowParallelLinear (input-sharded → all-reduce). Reshape in `checkpoint_loader`.
+- HF's dual-path decoder layer forward + `Gemma4TextRouter` kept UNCHANGED (router replicated; its
+  top_k_weights already carry renorm + per_expert_scale).
+
+**THE key bug (cost 2 compiles):** `scatter_to_tensor_model_parallel_region` uses a Python-int
+`get_tensor_model_parallel_rank()` → in ModelBuilder's SINGLE-RANK trace it BAKES rank 0's slice
+(`Wd[:,0:16]`), so at runtime every rank weights experts 0-15 while `gate_up` computes its OWN experts
+→ misaligned garbage (empty output). FIX: register `SPMDRank(TP)` in DenseExperts (checkpoint
+`experts.spmd_rank.rank = torch.arange(TP, int32)`, sharded dim0 → each rank gets its number) and use
+`scatter_to_process_group_spmd(Wd, 1, spmd_rank.get_rank())` — a RUNTIME rank-aware scatter. This is
+the mechanism NxD's own ExpertMLPs uses (`enable_spmd_rank`). Symptom of the bug: device output empty
+(immediate EOS) while CPU ref correct and the math/sharding unit-tests pass → it's a runtime-rank issue.
+
+**Remaining (optional):** server wrap + build production 512/128 + publish (reuse the 31B server/Docker).
+
+---
+
 # Gemma-4 26B-A4B → Inferentia2 (inf2.24xlarge, TP=8) — port scaffold
 
 HF: `google/gemma-4-26B-A4B-it`. **A4B = 26B total params, ~3.2B active/token (MoE).**
