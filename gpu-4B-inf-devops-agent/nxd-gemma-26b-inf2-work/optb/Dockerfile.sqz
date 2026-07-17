@@ -19,7 +19,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV MODEL_DIR=/data/cfg \
     MB_LOAD=/data/sqz_neff.pt \
     EMBED=/data/embed_tokens.pt \
-    TP_DEGREE=2 KV_MAX=256 KV_BUCKET=64 \
+    TP_DEGREE=2 KV_MAX=512 KV_BUCKET=128 \
     HF_REPO_INF=xbill9/gemma-4-26B-A4B-it-inferentia2-xlarge \
     HF_REPO=google/gemma-4-26B-A4B-it \
     NEURON_RT_NUM_CORES=2 PORT=8080 \
