@@ -11,7 +11,7 @@ from typing import Optional
 
 import boto3
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from openai import AsyncOpenAI
 
 # Setup logging to stderr ONLY to avoid interfering with MCP stdio communication
@@ -21,8 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger("vllm-devops-agent")
 logger.info("Initializing DevOps Agent MCP Server...")
 
-# Initialize FastMCP server
-mcp = FastMCP("Self-Hosted vLLM DevOps Agent")
+# Initialize MCPServer server
+mcp = MCPServer("Self-Hosted vLLM DevOps Agent")
 
 # Load AWS credentials if .aws_creds exists
 def load_aws_credentials():

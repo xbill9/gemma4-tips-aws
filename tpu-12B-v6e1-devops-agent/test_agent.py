@@ -2,12 +2,12 @@ import sys
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Mocking FastMCP and other dependencies before importing server
+# Mocking MCPServer and other dependencies before importing server
 mock_mcp = MagicMock()
 sys.modules["mcp"] = MagicMock()
 sys.modules["mcp.server"] = MagicMock()
-sys.modules["mcp.server.fastmcp"] = MagicMock()
-sys.modules["mcp.server.fastmcp"].FastMCP = MagicMock(return_value=mock_mcp)
+sys.modules["mcp.server.mcpserver"] = MagicMock()
+sys.modules["mcp.server.mcpserver"].MCPServer = MagicMock(return_value=mock_mcp)
 
 
 # Mock decorative tools

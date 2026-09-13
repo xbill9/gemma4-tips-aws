@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 from google.cloud import aiplatform, secretmanager, storage
 from google.cloud import logging as cloud_logging
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from openai import AsyncOpenAI
 
 # Setup logging to stderr ONLY to avoid interfering with MCP stdio communication
@@ -22,8 +22,8 @@ logging.basicConfig(
 logger = logging.getLogger("vllm-devops-agent")
 logger.info("Initializing DevOps Agent MCP Server...")
 
-# Initialize FastMCP server
-mcp = FastMCP("Self-Hosted vLLM DevOps Agent")
+# Initialize MCPServer server
+mcp = MCPServer("Self-Hosted vLLM DevOps Agent")
 
 # Configuration
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "aisprint-491218")

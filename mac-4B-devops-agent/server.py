@@ -8,7 +8,7 @@ import time
 from typing import Optional
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from openai import AsyncOpenAI
 
 # Setup logging
@@ -17,8 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("vllm-devops-agent")
 
-# Initialize FastMCP server
-mcp = FastMCP("Local Gemma 4 SRE Agent")
+# Initialize MCPServer server
+mcp = MCPServer("Local Gemma 4 SRE Agent")
 
 # --- Configuration ---
 MODEL_NAME = os.getenv("MODEL_NAME", "gemma4:e4b")
