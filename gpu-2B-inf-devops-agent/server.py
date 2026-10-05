@@ -26,6 +26,10 @@ mcp = MCPServer("Self-Hosted vLLM DevOps Agent")
 
 # Load AWS credentials if .aws_creds exists
 def load_aws_credentials():
+    # An explicit AWS_PROFILE (set by mcp-run.sh) refreshes itself; the static keys cached in
+    # .aws_creds expire and, as env vars, would outrank that profile in boto3's chain.
+    if os.getenv("AWS_PROFILE"):
+        return
     aws_creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aws_creds")
     if os.path.exists(aws_creds_path):
         with open(aws_creds_path, "r") as f:
